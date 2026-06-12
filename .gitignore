@@ -1,12 +1,43 @@
+# Dependencies
 node_modules/
+
+# Build outputs
 dist/
 build/
 .next/
-coverage/
 target/
+
+# Test & coverage
+coverage/
+*.lcov
+
+# Analysis cache
 .refactor-radar/
+
+# Logs
 *.log
 *.tmp
+npm-debug.log*
+
+# OS files
 .DS_Store
 Thumbs.db
+Desktop.ini
 
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Rust
+*.pdb
+
+# Misc
+*.bak
