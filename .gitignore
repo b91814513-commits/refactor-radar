@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+.next/
+coverage/
+target/
+.refactor-radar/
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+

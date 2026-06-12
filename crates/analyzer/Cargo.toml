@@ -1,0 +1,14 @@
+[package]
+name = "analyzer"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+
