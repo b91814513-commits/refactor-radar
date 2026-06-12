@@ -8,6 +8,7 @@ import {
   Tooltip,
 } from "recharts";
 
+import { useLocale, type TranslationKey } from "../../lib/i18n";
 import type { AnalysisIssue, IssueType } from "../../lib/types";
 
 interface IssueDistributionChartProps {
@@ -22,11 +23,11 @@ const TYPE_COLORS: Record<IssueType, string> = {
   duplication_candidate: "#3b82f6",
 };
 
-const TYPE_LABELS: Record<IssueType, string> = {
-  large_module: "Large Module",
-  dependency_hotspot: "Dependency Hotspot",
-  circular_dependency: "Circular Dependency",
-  duplication_candidate: "Duplication Candidate",
+const TYPE_I18N: Record<IssueType, TranslationKey> = {
+  large_module: "filter.large_module",
+  dependency_hotspot: "filter.dependency_hotspot",
+  circular_dependency: "filter.circular_dependency",
+  duplication_candidate: "filter.duplication_candidate",
 };
 
 interface TooltipPayloadEntry {
@@ -47,7 +48,7 @@ function CustomTooltip({
   return (
     <div className="chart-tooltip">
       <span className="chart-tooltip-label">{entry.name}</span>
-      <span className="chart-tooltip-value">{entry.value} issues</span>
+      <span className="chart-tooltip-value">{entry.value}</span>
     </div>
   );
 }
@@ -56,38 +57,40 @@ export function IssueDistributionChart({
   issues,
   onTypeClick,
 }: IssueDistributionChartProps) {
+  const { t } = useLocale();
+
   const data = useMemo(() => {
     const counts: Partial<Record<IssueType, number>> = {};
     for (const issue of issues) {
       counts[issue.issueType] = (counts[issue.issueType] ?? 0) + 1;
     }
     return (Object.keys(counts) as IssueType[]).map((type) => ({
-      name: TYPE_LABELS[type],
+      name: t(TYPE_I18N[type]),
       type,
       value: counts[type]!,
       fill: TYPE_COLORS[type],
     }));
-  }, [issues]);
+  }, [issues, t]);
 
   const typeByName = useMemo(() => {
     const map: Record<string, IssueType> = {};
-    for (const [key, label] of Object.entries(TYPE_LABELS) as [IssueType, string][]) {
-      map[label] = key;
+    for (const [key, i18nKey] of Object.entries(TYPE_I18N) as [IssueType, TranslationKey][]) {
+      map[t(i18nKey)] = key;
     }
     return map;
-  }, []);
+  }, [t]);
 
   if (data.length === 0) {
     return (
       <div className="chart-empty">
-        <p>No issues to display.</p>
+        <p>{t("chart.noIssues")}</p>
       </div>
     );
   }
 
   return (
     <div>
-      <h4 className="chart-title">Issue Types</h4>
+      <h4 className="chart-title">{t("chart.issueTypes")}</h4>
       <ResponsiveContainer width="100%" height={200}>
         <PieChart>
           <Pie

@@ -1,3 +1,4 @@
+import { useLocale, type TranslationKey } from "../../lib/i18n";
 import type { AnalysisIssue, AnalysisResult, IssueType } from "../../lib/types";
 import { FileMetricsChart } from "../charts/FileMetricsChart";
 import { IssueDistributionChart } from "../charts/IssueDistributionChart";
@@ -16,12 +17,13 @@ interface VisualizationTabsProps {
   onNodeClick?: (filePath: string) => void;
 }
 
-const TABS: { key: VizTab; label: string }[] = [
-  { key: "overview", label: "Overview" },
-  { key: "files", label: "Files" },
-  { key: "priority", label: "Priority" },
-  { key: "graph", label: "Dependency Graph" },
-];
+const TAB_KEYS: VizTab[] = ["overview", "files", "priority", "graph"];
+const TAB_I18N: Record<VizTab, TranslationKey> = {
+  overview: "tab.overview",
+  files: "tab.files",
+  priority: "tab.priority",
+  graph: "tab.graph",
+};
 
 export function VisualizationTabs({
   activeTab,
@@ -31,16 +33,18 @@ export function VisualizationTabs({
   onIssueClick,
   onNodeClick,
 }: VisualizationTabsProps) {
+  const { t } = useLocale();
+
   return (
     <div className="viz-section">
       <div className="viz-tabs">
-        {TABS.map((tab) => (
+        {TAB_KEYS.map((key) => (
           <button
-            key={tab.key}
-            className={activeTab === tab.key ? "viz-tab active" : "viz-tab"}
-            onClick={() => onTabChange(tab.key)}
+            key={key}
+            className={activeTab === key ? "viz-tab active" : "viz-tab"}
+            onClick={() => onTabChange(key)}
           >
-            {tab.label}
+            {t(TAB_I18N[key])}
           </button>
         ))}
       </div>

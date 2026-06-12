@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 
+import { useLocale } from "../../lib/i18n";
 import type { AnalysisIssue, Severity } from "../../lib/types";
 
 interface PriorityRankingChartProps {
@@ -48,7 +49,7 @@ function CustomTooltip({
   return (
     <div className="chart-tooltip">
       <span className="chart-tooltip-label">{entry.payload.title}</span>
-      <span className="chart-tooltip-value">Score: {entry.value.toFixed(1)}</span>
+      <span className="chart-tooltip-value">{entry.value.toFixed(1)}</span>
     </div>
   );
 }
@@ -57,6 +58,8 @@ export function PriorityRankingChart({
   issues,
   onIssueClick,
 }: PriorityRankingChartProps) {
+  const { t } = useLocale();
+
   const data = useMemo(() => {
     return [...issues]
       .sort((a, b) => b.priorityScore - a.priorityScore)
@@ -68,7 +71,7 @@ export function PriorityRankingChart({
         const title = `${typeShort}: ${basename}`;
         return {
           id: issue.id,
-          title: title.length > 32 ? title.slice(0, 29) + "…" : title,
+          title: title.length > 32 ? title.slice(0, 29) + "\u2026" : title,
           score: Math.round(issue.priorityScore * 10) / 10,
           severity: issue.severity,
           fill: SEVERITY_COLORS[issue.severity],
@@ -79,14 +82,14 @@ export function PriorityRankingChart({
   if (data.length === 0) {
     return (
       <div className="chart-empty">
-        <p>No issues to display.</p>
+        <p>{t("chart.noIssues")}</p>
       </div>
     );
   }
 
   return (
     <div>
-      <h4 className="chart-title">Priority Ranking (Top 10)</h4>
+      <h4 className="chart-title">{t("chart.priorityRanking")}</h4>
       <ResponsiveContainer width="100%" height={Math.max(200, data.length * 36)}>
         <BarChart
           data={data}

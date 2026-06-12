@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 
+import { useLocale, type TranslationKey } from "../../lib/i18n";
 import type { AnalyzedFile } from "../../lib/types";
 
 type MetricKey = "lineCount" | "functionCount" | "fanIn" | "fanOut";
@@ -18,11 +19,11 @@ interface FileMetricsChartProps {
   files: AnalyzedFile[];
 }
 
-const METRIC_OPTIONS: { key: MetricKey; label: string }[] = [
-  { key: "lineCount", label: "Lines" },
-  { key: "functionCount", label: "Functions" },
-  { key: "fanIn", label: "Fan-In" },
-  { key: "fanOut", label: "Fan-Out" },
+const METRIC_I18N: { key: MetricKey; label: TranslationKey }[] = [
+  { key: "lineCount", label: "metric.lines" },
+  { key: "functionCount", label: "metric.functions" },
+  { key: "fanIn", label: "metric.fanIn" },
+  { key: "fanOut", label: "metric.fanOut" },
 ];
 
 const BAR_COLOR = "#3b82f6";
@@ -55,6 +56,7 @@ function CustomTooltip({
 }
 
 export function FileMetricsChart({ files }: FileMetricsChartProps) {
+  const { t } = useLocale();
   const [metric, setMetric] = useState<MetricKey>("lineCount");
 
   const data = useMemo(() => {
@@ -64,7 +66,7 @@ export function FileMetricsChart({ files }: FileMetricsChartProps) {
       .map((file) => {
         const basename = file.path.split("/").pop() ?? file.path;
         return {
-          name: basename.length > 18 ? basename.slice(0, 15) + "…" : basename,
+          name: basename.length > 18 ? basename.slice(0, 15) + "\u2026" : basename,
           fullPath: file.path,
           value: file.metrics[metric],
         };
@@ -74,7 +76,7 @@ export function FileMetricsChart({ files }: FileMetricsChartProps) {
   if (files.length === 0) {
     return (
       <div className="chart-empty">
-        <p>No files to display.</p>
+        <p>{t("chart.noFiles")}</p>
       </div>
     );
   }
@@ -82,15 +84,15 @@ export function FileMetricsChart({ files }: FileMetricsChartProps) {
   return (
     <div>
       <div className="chart-header-row">
-        <h4 className="chart-title">Top Files by Metric</h4>
+        <h4 className="chart-title">{t("chart.topFiles")}</h4>
         <div className="metric-selector">
-          {METRIC_OPTIONS.map((opt) => (
+          {METRIC_I18N.map((opt) => (
             <button
               key={opt.key}
               className={metric === opt.key ? "metric-btn active" : "metric-btn"}
               onClick={() => setMetric(opt.key)}
             >
-              {opt.label}
+              {t(opt.label)}
             </button>
           ))}
         </div>
@@ -118,11 +120,7 @@ export function FileMetricsChart({ files }: FileMetricsChartProps) {
             {data.map((entry, index) => (
               <Cell
                 key={index}
-                fill={
-                  index === 0
-                    ? BAR_HIGHLIGHT_COLOR
-                    : BAR_COLOR
-                }
+                fill={index === 0 ? BAR_HIGHLIGHT_COLOR : BAR_COLOR}
                 opacity={Math.max(0.5, 1 - index * 0.04)}
               />
             ))}

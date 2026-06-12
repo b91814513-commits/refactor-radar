@@ -11,6 +11,7 @@ import {
 } from "d3-force";
 
 import type { AnalyzedFile, AnalysisIssue } from "../../lib/types";
+import { useLocale } from "../../lib/i18n";
 import { buildGraphData, type GraphNode } from "./graphUtils";
 
 interface DependencyGraphProps {
@@ -68,6 +69,7 @@ export function DependencyGraph({
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const simRef = useRef<Simulation<SimNode, SimLink> | null>(null);
+  const { t } = useLocale();
 
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [nodes, setNodes] = useState<RenderNode[]>([]);
@@ -300,7 +302,7 @@ export function DependencyGraph({
   if (graphData.nodes.length === 0) {
     return (
       <div className="graph-empty">
-        <p>No dependency relationships to visualize.</p>
+        <p>{t("chart.noGraph")}</p>
       </div>
     );
   }
@@ -308,19 +310,19 @@ export function DependencyGraph({
   return (
     <div>
       <div className="graph-header-row">
-        <h4 className="chart-title">Dependency Graph</h4>
+        <h4 className="chart-title">{t("chart.dependencyGraph")}</h4>
         <div className="graph-legend">
           <span className="graph-legend-item">
             <span className="graph-legend-dot" aria-hidden="true" style={{ background: "#ef4444" }} />
-            Cyclic
+            {t("legend.cyclic")}
           </span>
           <span className="graph-legend-item">
             <span className="graph-legend-dot" aria-hidden="true" style={{ background: "#f59e0b" }} />
-            Hotspot
+            {t("legend.hotspot")}
           </span>
           <span className="graph-legend-item">
             <span className="graph-legend-dot" aria-hidden="true" style={{ background: "#3b82f6" }} />
-            Normal
+            {t("legend.normal")}
           </span>
         </div>
       </div>

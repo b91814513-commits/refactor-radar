@@ -1,21 +1,41 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { VisualizationTabs, type VizTab } from "./components/layout/VisualizationTabs";
 import { getResults, getStatus, startAnalysis } from "./lib/api";
+import { createTranslator, LocaleContext, useLocale, type Locale, type TranslationKey } from "./lib/i18n";
 import type { AnalysisIssue, AnalysisPhase, AnalysisResult, IssueType } from "./lib/types";
 
 const RECENT_KEY = "refactor-radar-recent";
+const LOCALE_KEY = "refactor-radar-locale";
 
-const phaseLabels: Record<AnalysisPhase, string> = {
-  discovery: "Scanning repository",
-  parsing: "Parsing source files",
-  graphing: "Building dependency graph",
-  rules: "Evaluating refactor rules",
-  scoring: "Ranking findings",
-  done: "Completed"
+const PHASE_KEYS: Record<AnalysisPhase, TranslationKey> = {
+  discovery: "phase.discovery",
+  parsing: "phase.parsing",
+  graphing: "phase.graphing",
+  rules: "phase.rules",
+  scoring: "phase.scoring",
+  done: "phase.done",
+};
+
+const FILTER_KEYS: Record<string, TranslationKey> = {
+  all: "filter.all",
+  large_module: "filter.large_module",
+  dependency_hotspot: "filter.dependency_hotspot",
+  circular_dependency: "filter.circular_dependency",
+  duplication_candidate: "filter.duplication_candidate",
 };
 
 function App() {
+  const [locale, setLocaleState] = useState<Locale>(() => {
+    const stored = window.localStorage.getItem(LOCALE_KEY);
+    return stored === "zh" ? "zh" : "en";
+  });
+  const t = useMemo(() => createTranslator(locale), [locale]);
+  const setLocale = useCallback((next: Locale) => {
+    setLocaleState(next);
+    window.localStorage.setItem(LOCALE_KEY, next);
+  }, []);
+
   const [repoPath, setRepoPath] = useState("");
   const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [phase, setPhase] = useState<AnalysisPhase>("discovery");
@@ -39,15 +59,11 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!analysisId || !loading) {
-      return;
-    }
-
+    if (!analysisId || !loading) return;
     const timer = window.setInterval(async () => {
       try {
         const status = await getStatus(analysisId);
         setPhase(status.phase);
-
         if (status.done) {
           window.clearInterval(timer);
           setLoading(false);
@@ -55,7 +71,6 @@ function App() {
             setError(status.error);
             return;
           }
-
           const payload = await getResults(analysisId);
           setResults(payload);
           setSelectedIssueId(payload.issues[0]?.id ?? null);
@@ -66,15 +81,12 @@ function App() {
         setError((statusError as Error).message);
       }
     }, 1000);
-
     return () => window.clearInterval(timer);
   }, [analysisId, loading]);
 
   const filteredIssues = useMemo(() => {
     const issues = results?.issues ?? [];
-    if (selectedType === "all") {
-      return issues;
-    }
+    if (selectedType === "all") return issues;
     return issues.filter((issue) => issue.issueType === selectedType);
   }, [results, selectedType]);
 
@@ -84,21 +96,19 @@ function App() {
 
   async function handleAnalyze() {
     if (!repoPath.trim()) {
-      setError("Enter a repository path.");
+      setError(t("analyzer.errorEmpty"));
       return;
     }
-
     setError(null);
     setLoading(true);
     setResults(null);
     setSelectedIssueId(null);
     setPhase("discovery");
-
     try {
       const response = await startAnalysis(repoPath.trim());
       setAnalysisId(response.analysisId);
       setRecentRepos((current) => {
-        const next = [repoPath.trim(), ...current.filter((value) => value !== repoPath.trim())].slice(0, 5);
+        const next = [repoPath.trim(), ...current.filter((v) => v !== repoPath.trim())].slice(0, 5);
         window.localStorage.setItem(RECENT_KEY, JSON.stringify(next));
         return next;
       });
@@ -108,152 +118,175 @@ function App() {
     }
   }
 
+  const localeCtx = useMemo(
+    () => ({ locale, setLocale, t }),
+    [locale, setLocale, t],
+  );
+
   return (
-    <div className="shell">
-      <header className="hero">
-        <div>
-          <p className="eyebrow">Local-first repository analysis</p>
-          <h1>Refactor Radar</h1>
-          <p className="lede">
-            Find the most valuable refactor opportunities in a JS or TS repository before technical debt
-            turns into architecture drift.
-          </p>
-        </div>
-        <div className="hero-stats">
-          <div className="stat">
-            <span className="stat-label">Issue types</span>
-            <strong>4</strong>
-          </div>
-          <div className="stat">
-            <span className="stat-label">Analysis mode</span>
-            <strong>Static-first</strong>
-          </div>
-        </div>
-      </header>
+    <LocaleContext.Provider value={localeCtx}>
+      <div className="shell">
+        {/* Radar pulse decoration */}
+        <div className="radar-bg" aria-hidden="true" />
 
-      <main className="layout">
-        <section className="panel analyzer-panel">
-          <div className="panel-header">
-            <div>
-              <h2>Analyze a repository</h2>
-              <p>Point Refactor Radar at a local JS/TS project and rank the hotspots worth fixing first.</p>
-            </div>
+        <header className="hero">
+          <div className="hero-text">
+            <p className="eyebrow">{t("hero.eyebrow")}</p>
+            <h1 className="hero-title">
+              <span className="radar-dot" aria-hidden="true" />
+              Refactor Radar
+            </h1>
+            <p className="lede">{t("hero.lede")}</p>
           </div>
-
-          <label className="field">
-            <span>Repository path</span>
-            <input
-              name="repoPath"
-              value={repoPath}
-              onChange={(event) => setRepoPath(event.target.value)}
-              placeholder="D:/work/my-app…"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </label>
-
-          <div className="actions">
-            <button onClick={handleAnalyze} disabled={loading}>
-              {loading ? "Analyzing\u2026" : "Analyze Repository"}
+          <div className="hero-right">
+            <button
+              className="lang-toggle"
+              onClick={() => setLocale(locale === "en" ? "zh" : "en")}
+              aria-label={locale === "en" ? "Switch to Chinese" : "Switch to English"}
+            >
+              <span className="lang-toggle-inner">{t("lang.toggle")}</span>
             </button>
-            <span className="phase">{loading ? phaseLabels[phase] : "Ready"}</span>
-          </div>
-
-          {error ? <p className="error" role="alert">{error}</p> : null}
-
-          <div className="recent">
-            <div className="section-title-row">
-              <h3>Recent repositories</h3>
+            <div className="hero-stats">
+              <div className="stat">
+                <span className="stat-label">{t("hero.issueTypes")}</span>
+                <strong>4</strong>
+              </div>
+              <div className="stat">
+                <span className="stat-label">{t("hero.analysisMode")}</span>
+                <strong>{t("hero.staticFirst")}</strong>
+              </div>
             </div>
-            {recentRepos.length === 0 ? (
-              <p className="empty">No recent analyses yet.</p>
-            ) : (
-              <ul>
-                {recentRepos.map((path) => (
-                  <li key={path}>
-                    <button className="link-button" onClick={() => setRepoPath(path)}>
-                      {path}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
-        </section>
+        </header>
 
-        <section className="panel dashboard-panel">
-          <div className="panel-header">
-            <div>
-              <h2>Top refactor opportunities</h2>
-              <p>Evidence-backed issues sorted by priority, with deterministic signals ahead of narrative guidance.</p>
+        <main className="layout">
+          <section className="panel analyzer-panel">
+            <div className="panel-header">
+              <div>
+                <h2>{t("analyzer.title")}</h2>
+                <p>{t("analyzer.desc")}</p>
+              </div>
             </div>
-            <div className="filters" role="group" aria-label="Filter by issue type">
-              {["all", "large_module", "dependency_hotspot", "circular_dependency", "duplication_candidate"].map(
-                (value) => (
-                  <button
-                    key={value}
-                    className={selectedType === value ? "filter active" : "filter"}
-                    onClick={() => setSelectedType(value as typeof selectedType)}
-                  >
-                    {value.replace(/_/g, " ")}
-                  </button>
-                )
+
+            <label className="field">
+              <span>{t("analyzer.repoPath")}</span>
+              <input
+                name="repoPath"
+                value={repoPath}
+                onChange={(event) => setRepoPath(event.target.value)}
+                placeholder={t("analyzer.placeholder")}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </label>
+
+            <div className="actions">
+              <button className="btn-primary" onClick={handleAnalyze} disabled={loading}>
+                {loading ? t("analyzer.analyzing") : t("analyzer.analyze")}
+              </button>
+              <span className="phase">
+                {loading ? t(PHASE_KEYS[phase]) : t("analyzer.ready")}
+              </span>
+            </div>
+
+            {error ? <p className="error" role="alert">{error}</p> : null}
+
+            <div className="recent">
+              <div className="section-title-row">
+                <h3>{t("analyzer.recent")}</h3>
+              </div>
+              {recentRepos.length === 0 ? (
+                <p className="empty">{t("analyzer.noRecent")}</p>
+              ) : (
+                <ul>
+                  {recentRepos.map((path) => (
+                    <li key={path}>
+                      <button className="link-button" onClick={() => setRepoPath(path)}>
+                        {path}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
-          </div>
+          </section>
 
-          {results ? (
-            <>
-              <div className="summary-grid">
-                <SummaryCard label="Files" value={results.summary.fileCount} />
-                <SummaryCard label="Modules" value={results.summary.moduleCount} />
-                <SummaryCard label="Issues" value={results.summary.issueCount} />
-                <SummaryCard label="High priority" value={results.summary.highPriorityCount} />
+          <section className="panel dashboard-panel">
+            <div className="panel-header">
+              <div>
+                <h2>{t("dashboard.title")}</h2>
+                <p>{t("dashboard.desc")}</p>
               </div>
-
-              <VisualizationTabs
-                activeTab={activeVizTab}
-                onTabChange={setActiveVizTab}
-                results={results}
-                onTypeClick={(type: IssueType) => setSelectedType(type)}
-                onIssueClick={(id: string) => setSelectedIssueId(id)}
-                onNodeClick={(filePath: string) => {
-                  const issue = results.issues.find((i) => i.files.includes(filePath));
-                  if (issue) setSelectedIssueId(issue.id);
-                }}
-              />
-
-              <div className="results-grid">
-                <div className="issue-list">
-                  {filteredIssues.map((issue) => (
+              <div className="filters" role="group" aria-label="Filter by issue type">
+                {(["all", "large_module", "dependency_hotspot", "circular_dependency", "duplication_candidate"] as const).map(
+                  (value) => (
                     <button
-                      key={issue.id}
-                      className={selectedIssue?.id === issue.id ? "issue-row active" : "issue-row"}
-                      onClick={() => setSelectedIssueId(issue.id)}
+                      key={value}
+                      className={selectedType === value ? "filter active" : "filter"}
+                      onClick={() => setSelectedType(value as typeof selectedType)}
                     >
-                      <div className="issue-row-top">
-                        <span className={`severity severity-${issue.severity}`}>{issue.severity}</span>
-                        <span className="confidence">{issue.confidence}</span>
-                      </div>
-                      <strong>{issue.title}</strong>
-                      <p>{issue.summary}</p>
+                      {t(FILTER_KEYS[value])}
                     </button>
-                  ))}
+                  ),
+                )}
+              </div>
+            </div>
+
+            {results ? (
+              <>
+                <div className="summary-grid">
+                  <SummaryCard label={t("dashboard.files")} value={results.summary.fileCount} />
+                  <SummaryCard label={t("dashboard.modules")} value={results.summary.moduleCount} />
+                  <SummaryCard label={t("dashboard.issues")} value={results.summary.issueCount} />
+                  <SummaryCard label={t("dashboard.highPriority")} value={results.summary.highPriorityCount} />
                 </div>
 
-                <div className="issue-detail">
-                  {selectedIssue ? <IssueDetail issue={selectedIssue} /> : <p className="empty">No issue selected.</p>}
+                <VisualizationTabs
+                  activeTab={activeVizTab}
+                  onTabChange={setActiveVizTab}
+                  results={results}
+                  onTypeClick={(type: IssueType) => setSelectedType(type)}
+                  onIssueClick={(id: string) => setSelectedIssueId(id)}
+                  onNodeClick={(filePath: string) => {
+                    const issue = results.issues.find((i) => i.files.includes(filePath));
+                    if (issue) setSelectedIssueId(issue.id);
+                  }}
+                />
+
+                <div className="results-grid">
+                  <div className="issue-list">
+                    {filteredIssues.map((issue) => (
+                      <button
+                        key={issue.id}
+                        className={selectedIssue?.id === issue.id ? "issue-row active" : "issue-row"}
+                        onClick={() => setSelectedIssueId(issue.id)}
+                      >
+                        <div className="issue-row-top">
+                          <span className={`severity severity-${issue.severity}`}>
+                            {t(`severity.${issue.severity}` as TranslationKey)}
+                          </span>
+                          <span className="confidence">{issue.confidence}</span>
+                        </div>
+                        <strong>{issue.title}</strong>
+                        <p>{issue.summary}</p>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="issue-detail">
+                    {selectedIssue ? <IssueDetail issue={selectedIssue} /> : <p className="empty">{t("detail.noSelected")}</p>}
+                  </div>
                 </div>
+              </>
+            ) : (
+              <div className="placeholder">
+                <p>{t("dashboard.placeholder")}</p>
               </div>
-            </>
-          ) : (
-            <div className="placeholder">
-              <p>Run an analysis to populate the dashboard.</p>
-            </div>
-          )}
-        </section>
-      </main>
-    </div>
+            )}
+          </section>
+        </main>
+      </div>
+    </LocaleContext.Provider>
   );
 }
 
@@ -267,16 +300,17 @@ function SummaryCard({ label, value }: { label: string; value: number }) {
 }
 
 function IssueDetail({ issue }: { issue: AnalysisIssue }) {
+  const { t } = useLocale();
   return (
     <div className="detail-stack">
       <div>
         <div className="detail-header">
           <div>
-            <p className="eyebrow">{issue.issueType.replace(/_/g, " ")}</p>
+            <p className="eyebrow">{t(`filter.${issue.issueType}` as TranslationKey)}</p>
             <h3>{issue.title}</h3>
           </div>
           <div className="score">
-            <span>Priority</span>
+            <span>{t("detail.priority")}</span>
             <strong>{issue.priorityScore.toFixed(1)}</strong>
           </div>
         </div>
@@ -284,7 +318,7 @@ function IssueDetail({ issue }: { issue: AnalysisIssue }) {
       </div>
 
       <section>
-        <h4>Evidence</h4>
+        <h4>{t("detail.evidence")}</h4>
         <ul className="detail-list">
           {issue.evidence.map((item) => (
             <li key={`${item.label}-${item.detail}`}>
@@ -296,7 +330,7 @@ function IssueDetail({ issue }: { issue: AnalysisIssue }) {
       </section>
 
       <section>
-        <h4>Files</h4>
+        <h4>{t("detail.files")}</h4>
         <ul className="tag-list">
           {issue.files.map((file) => (
             <li key={file}>{file}</li>
@@ -305,7 +339,7 @@ function IssueDetail({ issue }: { issue: AnalysisIssue }) {
       </section>
 
       <section>
-        <h4>Suggested refactor path</h4>
+        <h4>{t("detail.suggested")}</h4>
         <ul className="detail-list">
           {issue.suggestedActions.map((action) => (
             <li key={action.title}>
@@ -318,7 +352,7 @@ function IssueDetail({ issue }: { issue: AnalysisIssue }) {
 
       {issue.aiExplanation ? (
         <section>
-          <h4>AI explanation</h4>
+          <h4>{t("detail.aiExplanation")}</h4>
           <p className="detail-summary">{issue.aiExplanation.plainEnglishExplanation}</p>
         </section>
       ) : null}
@@ -327,4 +361,3 @@ function IssueDetail({ issue }: { issue: AnalysisIssue }) {
 }
 
 export default App;
-

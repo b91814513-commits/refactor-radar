@@ -7,6 +7,7 @@ import {
   Tooltip,
 } from "recharts";
 
+import { useLocale, type TranslationKey } from "../../lib/i18n";
 import type { AnalysisIssue, Severity } from "../../lib/types";
 
 interface SeverityBreakdownChartProps {
@@ -19,10 +20,10 @@ const SEVERITY_COLORS: Record<Severity, string> = {
   low: "#22c55e",
 };
 
-const SEVERITY_LABELS: Record<Severity, string> = {
-  high: "High",
-  medium: "Medium",
-  low: "Low",
+const SEVERITY_I18N: Record<Severity, TranslationKey> = {
+  high: "severity.high",
+  medium: "severity.medium",
+  low: "severity.low",
 };
 
 interface TooltipPayloadEntry {
@@ -42,7 +43,7 @@ function CustomTooltip({
   return (
     <div className="chart-tooltip">
       <span className="chart-tooltip-label">{entry.name}</span>
-      <span className="chart-tooltip-value">{entry.value} issues</span>
+      <span className="chart-tooltip-value">{entry.value}</span>
     </div>
   );
 }
@@ -50,6 +51,8 @@ function CustomTooltip({
 export function SeverityBreakdownChart({
   issues,
 }: SeverityBreakdownChartProps) {
+  const { t } = useLocale();
+
   const { data, total } = useMemo(() => {
     const counts: Partial<Record<Severity, number>> = {};
     for (const issue of issues) {
@@ -62,25 +65,25 @@ export function SeverityBreakdownChart({
         return order[a] - order[b];
       })
       .map((severity) => ({
-        name: SEVERITY_LABELS[severity],
+        name: t(SEVERITY_I18N[severity]),
         severity,
         value: counts[severity]!,
         fill: SEVERITY_COLORS[severity],
       }));
     return { data, total };
-  }, [issues]);
+  }, [issues, t]);
 
   if (data.length === 0) {
     return (
       <div className="chart-empty">
-        <p>No issues to display.</p>
+        <p>{t("chart.noIssues")}</p>
       </div>
     );
   }
 
   return (
     <div>
-      <h4 className="chart-title">Severity Breakdown</h4>
+      <h4 className="chart-title">{t("chart.severityBreakdown")}</h4>
       <ResponsiveContainer width="100%" height={200}>
         <PieChart>
           <Pie
@@ -114,7 +117,7 @@ export function SeverityBreakdownChart({
             fill="#8fa3bf"
             fontSize={10}
           >
-            issues
+            {t("chart.issuesUnit")}
           </text>
         </PieChart>
       </ResponsiveContainer>
