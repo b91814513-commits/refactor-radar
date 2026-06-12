@@ -143,20 +143,23 @@ function App() {
           <label className="field">
             <span>Repository path</span>
             <input
+              name="repoPath"
               value={repoPath}
               onChange={(event) => setRepoPath(event.target.value)}
-              placeholder="D:/work/my-app"
+              placeholder="D:/work/my-app…"
+              autoComplete="off"
+              spellCheck={false}
             />
           </label>
 
           <div className="actions">
             <button onClick={handleAnalyze} disabled={loading}>
-              {loading ? "Analyzing..." : "Analyze Repo"}
+              {loading ? "Analyzing\u2026" : "Analyze Repository"}
             </button>
             <span className="phase">{loading ? phaseLabels[phase] : "Ready"}</span>
           </div>
 
-          {error ? <p className="error">{error}</p> : null}
+          {error ? <p className="error" role="alert">{error}</p> : null}
 
           <div className="recent">
             <div className="section-title-row">
@@ -184,7 +187,7 @@ function App() {
               <h2>Top refactor opportunities</h2>
               <p>Evidence-backed issues sorted by priority, with deterministic signals ahead of narrative guidance.</p>
             </div>
-            <div className="filters">
+            <div className="filters" role="group" aria-label="Filter by issue type">
               {["all", "large_module", "dependency_hotspot", "circular_dependency", "duplication_candidate"].map(
                 (value) => (
                   <button

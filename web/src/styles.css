@@ -21,6 +21,23 @@ input {
   font: inherit;
 }
 
+/* Focus: visible ring on keyboard navigation only */
+button:focus-visible,
+input:focus-visible,
+.filter:focus-visible,
+.viz-tab:focus-visible,
+.issue-row:focus-visible,
+.link-button:focus-visible,
+.metric-btn:focus-visible {
+  outline: 2px solid #7dd3fc;
+  outline-offset: 2px;
+}
+
+/* Headings: prevent widows */
+h1, h2, h3, h4 {
+  text-wrap: balance;
+}
+
 .shell {
   min-height: 100vh;
   padding: 32px;
@@ -144,14 +161,28 @@ input {
 
 .actions button,
 .filter,
-.link-button {
+.link-button,
+.issue-row {
   padding: 10px 14px;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .actions button:disabled {
   opacity: 0.7;
   cursor: wait;
+}
+
+.actions button:hover:not(:disabled),
+.filter:hover,
+.link-button:hover {
+  border-color: #4a6280;
+  background: #1a2640;
+}
+
+.issue-row:hover {
+  border-color: #4a6280;
+  background: #162033;
 }
 
 .error {
@@ -174,6 +205,9 @@ input {
 .link-button {
   width: 100%;
   text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .filters {
@@ -205,6 +239,7 @@ input {
   display: block;
   margin-top: 6px;
   font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .results-grid {
@@ -498,5 +533,18 @@ input {
 .graph-container svg {
   display: block;
   user-select: none;
+  touch-action: none;
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 

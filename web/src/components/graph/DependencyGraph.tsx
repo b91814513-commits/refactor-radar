@@ -311,15 +311,15 @@ export function DependencyGraph({
         <h4 className="chart-title">Dependency Graph</h4>
         <div className="graph-legend">
           <span className="graph-legend-item">
-            <span className="graph-legend-dot" style={{ background: "#ef4444" }} />
+            <span className="graph-legend-dot" aria-hidden="true" style={{ background: "#ef4444" }} />
             Cyclic
           </span>
           <span className="graph-legend-item">
-            <span className="graph-legend-dot" style={{ background: "#f59e0b" }} />
+            <span className="graph-legend-dot" aria-hidden="true" style={{ background: "#f59e0b" }} />
             Hotspot
           </span>
           <span className="graph-legend-item">
-            <span className="graph-legend-dot" style={{ background: "#3b82f6" }} />
+            <span className="graph-legend-dot" aria-hidden="true" style={{ background: "#3b82f6" }} />
             Normal
           </span>
         </div>
@@ -327,6 +327,8 @@ export function DependencyGraph({
       <div ref={containerRef} className="graph-container">
         <svg
           ref={svgRef}
+          role="img"
+          aria-label="Interactive dependency graph showing file relationships and circular dependencies"
           width="100%"
           height="100%"
           viewBox={viewBoxStr}
