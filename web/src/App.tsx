@@ -60,7 +60,15 @@ function App() {
 
   useEffect(() => {
     if (!analysisId || !loading) return;
+    let attempts = 0;
+    const MAX_ATTEMPTS = 600; // 10 minutes at 1s interval
     const timer = window.setInterval(async () => {
+      if (++attempts > MAX_ATTEMPTS) {
+        window.clearInterval(timer);
+        setLoading(false);
+        setError("Analysis timed out. The server may be unresponsive.");
+        return;
+      }
       try {
         const status = await getStatus(analysisId);
         setPhase(status.phase);

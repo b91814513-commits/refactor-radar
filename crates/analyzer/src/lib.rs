@@ -231,13 +231,15 @@ impl Analyzer {
         let source = fs::read_to_string(file_path)
             .with_context(|| format!("failed to read source file {}", file_path.display()))?;
 
-        let imports = extract_imports(&source)
-            .into_iter()
-            .filter_map(|import| resolve_local_import(root, file_path, &import))
+        let raw_imports = extract_imports(&source);
+        let raw_exports = extract_exports(&source);
+
+        let imports = raw_imports
+            .iter()
+            .filter_map(|import| resolve_local_import(root, file_path, import))
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
-        let exports = extract_exports(&source);
         let functions = extract_function_bodies(&source);
         let function_lengths = functions
             .iter()
@@ -259,11 +261,11 @@ impl Analyzer {
             analyzed: AnalyzedFile {
                 path: relative_file_path(root, file_path),
                 imports,
-                exports,
+                exports: raw_exports.clone(),
                 metrics: FileMetrics {
                     line_count: source.lines().count(),
-                    import_count: extract_imports(&source).len(),
-                    export_count: extract_exports(&source).len(),
+                    import_count: raw_imports.len(),
+                    export_count: raw_exports.len(),
                     function_count: function_lengths.len(),
                     average_function_length,
                     fan_in: 0,

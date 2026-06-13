@@ -111,7 +111,7 @@ export function DependencyGraph({
     return map;
   }, [graphData.links]);
 
-  // Start simulation
+  // Start simulation (only when graphData changes, not on resize)
   useEffect(() => {
     const { width, height } = containerSize;
     if (width === 0 || height === 0 || graphData.nodes.length === 0) return;
@@ -175,7 +175,16 @@ export function DependencyGraph({
       sim.stop();
       simRef.current = null;
     };
-  }, [graphData, containerSize]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally exclude containerSize
+  }, [graphData]);
+
+  // Gently update center force on resize instead of restarting simulation
+  useEffect(() => {
+    const sim = simRef.current;
+    if (!sim || containerSize.width === 0) return;
+    sim.force("center", forceCenter(containerSize.width / 2, containerSize.height / 2));
+    sim.alpha(0.1).restart();
+  }, [containerSize]);
 
   // Convert SVG screen coords to viewBox coords
   const svgToVb = useCallback(
@@ -268,22 +277,28 @@ export function DependencyGraph({
     panStart.current = null;
   }
 
-  function handleWheel(e: React.WheelEvent<SVGSVGElement>) {
-    e.preventDefault();
-    const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
-    const pt = svgToVb(e.clientX, e.clientY);
-    setViewBox((vb) => {
-      const newW = vb.w * zoomFactor;
-      const newH = vb.h * zoomFactor;
-      // Zoom centered on cursor
-      return {
-        x: pt.x - (pt.x - vb.x) * zoomFactor,
-        y: pt.y - (pt.y - vb.y) * zoomFactor,
-        w: newW,
-        h: newH,
-      };
-    });
-  }
+  // Native wheel event listener (non-passive to allow preventDefault)
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
+      const pt = svgToVb(e.clientX, e.clientY);
+      setViewBox((vb) => {
+        const newW = vb.w * zoomFactor;
+        const newH = vb.h * zoomFactor;
+        return {
+          x: pt.x - (pt.x - vb.x) * zoomFactor,
+          y: pt.y - (pt.y - vb.y) * zoomFactor,
+          w: newW,
+          h: newH,
+        };
+      });
+    };
+    svg.addEventListener("wheel", handler, { passive: false });
+    return () => svg.removeEventListener("wheel", handler);
+  }, [svgToVb]);
 
   function handleNodeClick(nodeId: string) {
     onNodeClick?.(nodeId);
@@ -338,7 +353,6 @@ export function DependencyGraph({
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
-          onWheel={handleWheel}
           style={{ cursor: isPanning ? "grabbing" : dragNodeId.current ? "move" : "grab" }}
         >
           <defs>

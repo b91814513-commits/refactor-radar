@@ -89,6 +89,7 @@ impl From<anyhow::Error> for ApiError {
 async fn main() -> Result<()> {
     let result_root = PathBuf::from(".refactor-radar").join("analyses");
     fs::create_dir_all(&result_root).context("failed to create analysis cache directory")?;
+    cleanup_old_results(&result_root, 50);
 
     let state = AppState {
         jobs: Arc::new(Mutex::new(HashMap::new())),
@@ -244,6 +245,39 @@ async fn get_issue(
         .find(|issue| issue.id == issue_id)
         .map(Json)
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "issue not found"))
+}
+
+fn cleanup_old_results(result_root: &Path, max_files: usize) {
+    let entries = match fs::read_dir(result_root) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+
+    let mut files: Vec<_> = entries
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .and_then(|ext| ext.to_str())
+                == Some("json")
+        })
+        .collect();
+
+    if files.len() <= max_files {
+        return;
+    }
+
+    files.sort_by_key(|entry| {
+        entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+    });
+
+    for entry in files.iter().take(files.len() - max_files) {
+        let _ = fs::remove_file(entry.path());
+    }
 }
 
 fn persist_result(result_root: &Path, analysis_id: &str, result: &AnalysisResult) -> Result<PathBuf> {
