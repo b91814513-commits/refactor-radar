@@ -192,7 +192,7 @@ function App() {
               <button className="btn-primary" onClick={handleAnalyze} disabled={loading}>
                 {loading ? t("analyzer.analyzing") : t("analyzer.analyze")}
               </button>
-              <span className="phase">
+              <span className="phase" aria-live="polite">
                 {loading ? t(PHASE_KEYS[phase]) : t("analyzer.ready")}
               </span>
             </div>

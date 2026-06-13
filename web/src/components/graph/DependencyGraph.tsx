@@ -430,12 +430,22 @@ export function DependencyGraph({
                   data-node-id={node.id}
                   transform={`translate(${node.x},${node.y})`}
                   style={{ cursor: "pointer", opacity: dimmed ? 0.1 : 1 }}
+                  role="button"
+                  tabIndex={0}
                   onMouseEnter={() => setHoveredNode(node.id)}
                   onMouseLeave={() => setHoveredNode(null)}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleNodeClick(node.id);
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleNodeClick(node.id);
+                    }
+                  }}
+                  onFocus={() => setHoveredNode(node.id)}
+                  onBlur={() => setHoveredNode(null)}
                 >
                   <circle
                     r={isHovered ? r + 3 : r}
