@@ -5,6 +5,10 @@
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" />
 </p>
 
+<p align="center">
+  English | <a href="./README.zh-CN.md">简体中文</a>
+</p>
+
 <h1 align="center">Refactor Radar</h1>
 
 <p align="center">
