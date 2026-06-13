@@ -95,3 +95,11 @@ export interface StatusResponse {
   error?: string | null;
 }
 
+export interface AnalysisHistoryItem {
+  id: string;
+  repoPath: string;
+  analyzedAt: string;
+  issueCount: number;
+  highPriorityCount: number;
+}
+

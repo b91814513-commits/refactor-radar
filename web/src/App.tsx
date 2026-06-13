@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { AnalysisHistory } from "./components/layout/AnalysisHistory";
+import { AnalysisProgress } from "./components/layout/AnalysisProgress";
+import { EmptyState } from "./components/layout/EmptyState";
+import { ExportMenu } from "./components/layout/ExportMenu";
 import { VisualizationTabs, type VizTab } from "./components/layout/VisualizationTabs";
 import { getResults, getStatus, startAnalysis } from "./lib/api";
 import { createTranslator, LocaleContext, useLocale, type Locale, type TranslationKey } from "./lib/i18n";
@@ -46,6 +50,7 @@ function App() {
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [recentRepos, setRecentRepos] = useState<string[]>([]);
   const [activeVizTab, setActiveVizTab] = useState<VizTab>("overview");
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(RECENT_KEY);
@@ -82,6 +87,7 @@ function App() {
           const payload = await getResults(analysisId);
           setResults(payload);
           setSelectedIssueId(payload.issues[0]?.id ?? null);
+          setHistoryRefreshKey((k) => k + 1);
         }
       } catch (statusError) {
         window.clearInterval(timer);
@@ -192,30 +198,27 @@ function App() {
               <button className="btn-primary" onClick={handleAnalyze} disabled={loading}>
                 {loading ? t("analyzer.analyzing") : t("analyzer.analyze")}
               </button>
-              <span className="phase" aria-live="polite">
-                {loading ? t(PHASE_KEYS[phase]) : t("analyzer.ready")}
-              </span>
+              <AnalysisProgress phase={phase} loading={loading} />
             </div>
 
             {error ? <p className="error" role="alert">{error}</p> : null}
 
             <div className="recent">
               <div className="section-title-row">
-                <h3>{t("analyzer.recent")}</h3>
+                <h3>{t("history.title")}</h3>
               </div>
-              {recentRepos.length === 0 ? (
-                <p className="empty">{t("analyzer.noRecent")}</p>
-              ) : (
-                <ul>
-                  {recentRepos.map((path) => (
-                    <li key={path}>
-                      <button className="link-button" onClick={() => setRepoPath(path)}>
-                        {path}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <AnalysisHistory
+                onSelect={async (id) => {
+                  try {
+                    const result = await getResults(id);
+                    setResults(result);
+                    setSelectedIssueId(result.issues[0]?.id ?? null);
+                  } catch {
+                    setError("Failed to load analysis history.");
+                  }
+                }}
+                refreshKey={historyRefreshKey}
+              />
             </div>
           </section>
 
@@ -242,11 +245,14 @@ function App() {
 
             {results ? (
               <>
-                <div className="summary-grid">
-                  <SummaryCard label={t("dashboard.files")} value={results.summary.fileCount} />
-                  <SummaryCard label={t("dashboard.modules")} value={results.summary.moduleCount} />
-                  <SummaryCard label={t("dashboard.issues")} value={results.summary.issueCount} />
-                  <SummaryCard label={t("dashboard.highPriority")} value={results.summary.highPriorityCount} />
+                <div className="summary-row">
+                  <div className="summary-grid">
+                    <SummaryCard label={t("dashboard.files")} value={results.summary.fileCount} />
+                    <SummaryCard label={t("dashboard.modules")} value={results.summary.moduleCount} />
+                    <SummaryCard label={t("dashboard.issues")} value={results.summary.issueCount} />
+                    <SummaryCard label={t("dashboard.highPriority")} value={results.summary.highPriorityCount} />
+                  </div>
+                  <ExportMenu results={results} />
                 </div>
 
                 <VisualizationTabs
@@ -287,9 +293,7 @@ function App() {
                 </div>
               </>
             ) : (
-              <div className="placeholder">
-                <p>{t("dashboard.placeholder")}</p>
-              </div>
+              <EmptyState />
             )}
           </section>
         </main>

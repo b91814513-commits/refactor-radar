@@ -1,4 +1,4 @@
-import type { AnalysisResult, StatusResponse } from "./types";
+import type { AnalysisHistoryItem, AnalysisResult, StatusResponse } from "./types";
 
 const API_BASE = "http://127.0.0.1:8787";
 
@@ -33,6 +33,14 @@ export async function getResults(analysisId: string): Promise<AnalysisResult> {
     throw new Error(await readError(response));
   }
 
+  return response.json();
+}
+
+export async function getHistory(): Promise<AnalysisHistoryItem[]> {
+  const response = await fetch(`${API_BASE}/api/analyses`);
+  if (!response.ok) {
+    throw new Error(await readError(response));
+  }
   return response.json();
 }
 

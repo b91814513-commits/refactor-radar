@@ -102,6 +102,42 @@ const translations = {
 
   // Lang toggle
   "lang.toggle": { en: "\u4e2d\u6587", zh: "EN" },
+
+  // Empty state
+  "empty.title": { en: "Ready to scan", zh: "\u5f85\u626b\u63cf" },
+  "empty.hint": {
+    en: "Enter a JS/TS repository path and start analysis to see results here.",
+    zh: "\u8f93\u5165 JS/TS \u4ee3\u7801\u5e93\u8def\u5f84\u5e76\u5f00\u59cb\u5206\u6790\uff0c\u7ed3\u679c\u5c06\u5728\u8fd9\u91cc\u5c55\u793a\u3002",
+  },
+  "empty.featureLargeModule": {
+    en: "Detect oversized modules mixing responsibilities",
+    zh: "\u68c0\u6d4b\u804c\u8d23\u6df7\u6742\u7684\u8fc7\u5927\u6a21\u5757",
+  },
+  "empty.featureHotspot": {
+    en: "Identify dependency hotspots with high fan-in/fan-out",
+    zh: "\u8bc6\u522b fan-in/fan-out \u8fc7\u9ad8\u7684\u4f9d\u8d56\u70ed\u70b9",
+  },
+  "empty.featureCycle": {
+    en: "Find circular dependencies between modules",
+    zh: "\u53d1\u73b0\u6a21\u5757\u95f4\u7684\u5faa\u73af\u4f9d\u8d56",
+  },
+  "empty.featureDuplication": {
+    en: "Surface duplicate code candidates with evidence",
+    zh: "\u6807\u8bb0\u91cd\u590d\u4ee3\u7801\u5019\u9009\u5e76\u63d0\u4f9b\u8bc1\u636e",
+  },
+
+  // Export
+  "export.button": { en: "Export", zh: "\u5bfc\u51fa" },
+  "export.json": { en: "Export JSON", zh: "\u5bfc\u51fa JSON" },
+  "export.csv": { en: "Export CSV", zh: "\u5bfc\u51fa CSV" },
+  "export.markdown": { en: "Export Markdown", zh: "\u5bfc\u51fa Markdown" },
+
+  // History
+  "history.title": { en: "Analysis history", zh: "\u5206\u6790\u5386\u53f2" },
+  "history.empty": { en: "No analysis history yet.", zh: "\u6682\u65e0\u5206\u6790\u5386\u53f2\u3002" },
+  "history.load": { en: "Load", zh: "\u52a0\u8f7d" },
+  "history.issues": { en: "issues", zh: "\u4e2a\u95ee\u9898" },
+  "history.highPriority": { en: "high priority", zh: "\u9ad8\u4f18\u5148\u7ea7" },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

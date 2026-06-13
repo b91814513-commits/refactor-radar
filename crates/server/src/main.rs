@@ -102,6 +102,7 @@ async fn main() -> Result<()> {
         .route("/api/analyze/:id/status", get(get_status))
         .route("/api/analyze/:id/results", get(get_results))
         .route("/api/analyze/:id/issues/:issue_id", get(get_issue))
+        .route("/api/analyses", get(list_analyses))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -245,6 +246,47 @@ async fn get_issue(
         .find(|issue| issue.id == issue_id)
         .map(Json)
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "issue not found"))
+}
+
+async fn list_analyses(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+    let entries = match fs::read_dir(&state.result_root) {
+        Ok(entries) => entries,
+        Err(_) => return Ok(Json(vec![])),
+    };
+
+    let mut items: Vec<serde_json::Value> = entries
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| {
+            entry.path().extension().and_then(|ext| ext.to_str()) == Some("json")
+        })
+        .filter_map(|entry| {
+            let bytes = fs::read(entry.path()).ok()?;
+            let result: AnalysisResult = serde_json::from_slice(&bytes).ok()?;
+            let id = entry
+                .path()
+                .file_stem()?
+                .to_string_lossy()
+                .to_string();
+            Some(serde_json::json!({
+                "id": id,
+                "repoPath": result.repo_path,
+                "analyzedAt": result.summary.analyzed_at,
+                "issueCount": result.summary.issue_count,
+                "highPriorityCount": result.summary.high_priority_count,
+            }))
+        })
+        .collect();
+
+    items.sort_by(|a, b| {
+        let a_time = a["analyzedAt"].as_str().unwrap_or("");
+        let b_time = b["analyzedAt"].as_str().unwrap_or("");
+        b_time.cmp(a_time)
+    });
+
+    items.truncate(20);
+    Ok(Json(items))
 }
 
 fn cleanup_old_results(result_root: &Path, max_files: usize) {
