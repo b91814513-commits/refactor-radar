@@ -37,6 +37,19 @@ No cloud, no API keys, no code leaves your machine.
 | **Dependency Graph** | Force-directed SVG graph with drag, zoom, pan, and cycle highlighting |
 | **i18n** | Chinese / English toggle with persistent preference |
 
+## Screenshots
+
+<p align="center">
+  <img src="./docs/screenshot-results.png" alt="Analysis results with charts and issue list" width="100%" />
+  <em>Analysis dashboard — issue distribution, severity breakdown, and ranked findings with evidence.</em>
+</p>
+
+<p align="center">
+  <img src="./docs/screenshot-files.png" alt="File metrics bar chart" width="49%" />
+  <img src="./docs/screenshot-priority.png" alt="Priority ranking chart" width="49%" />
+  <em>Left: Top files by lines / functions / fan-in / fan-out. Right: Priority ranking of top 10 issues.</em>
+</p>
+
 ## Architecture
 
 ```

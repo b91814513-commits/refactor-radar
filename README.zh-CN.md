@@ -37,6 +37,19 @@
 | **依赖关系图** | 力导向 SVG 图形，支持拖拽、缩放、平移和循环高亮 |
 | **国际化** | 中文 / 英文切换，偏好设置持久化保存 |
 
+## 效果截图
+
+<p align="center">
+  <img src="./docs/screenshot-results.png" alt="分析结果与图表" width="100%" />
+  <em>分析仪表板 —— 问题分布、严重度分布、按优先级排列的发现及证据。</em>
+</p>
+
+<p align="center">
+  <img src="./docs/screenshot-files.png" alt="文件指标柱状图" width="49%" />
+  <img src="./docs/screenshot-priority.png" alt="优先级排行图" width="49%" />
+  <em>左：按行数 / 函数数 / fan-in / fan-out 排列的文件排行。右：前 10 个最高优先级问题排行。</em>
+</p>
+
 ## 项目架构
 
 ```
