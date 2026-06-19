@@ -13,6 +13,7 @@ repository = "https://github.com/your-name/refactor-radar"
 anyhow = "1"
 axum = { version = "0.7", features = ["macros"] }
 chrono = { version = "0.4", features = ["serde"] }
+rayon = "1.10"
 regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

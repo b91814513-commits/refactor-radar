@@ -108,6 +108,31 @@ function App() {
     return filteredIssues.find((issue) => issue.id === selectedIssueId) ?? filteredIssues[0] ?? null;
   }, [filteredIssues, selectedIssueId]);
 
+  // Stable callbacks so memoized children (charts, history, tabs) don't
+  // re-render on every App state change such as selectedIssueId updates.
+  const handleTypeClick = useCallback((type: IssueType) => setSelectedType(type), []);
+  const handleIssueClick = useCallback((id: string) => setSelectedIssueId(id), []);
+  const handleNodeClick = useCallback(
+    (filePath: string) => {
+      setResults((current) => {
+        if (!current) return current;
+        const issue = current.issues.find((i) => i.files.includes(filePath));
+        if (issue) setSelectedIssueId(issue.id);
+        return current;
+      });
+    },
+    [],
+  );
+  const handleHistorySelect = useCallback(async (id: string) => {
+    try {
+      const result = await getResults(id);
+      setResults(result);
+      setSelectedIssueId(result.issues[0]?.id ?? null);
+    } catch {
+      setError("Failed to load analysis history.");
+    }
+  }, []);
+
   async function handleAnalyze() {
     if (!repoPath.trim()) {
       setError(t("analyzer.errorEmpty"));
@@ -208,15 +233,7 @@ function App() {
                 <h3>{t("history.title")}</h3>
               </div>
               <AnalysisHistory
-                onSelect={async (id) => {
-                  try {
-                    const result = await getResults(id);
-                    setResults(result);
-                    setSelectedIssueId(result.issues[0]?.id ?? null);
-                  } catch {
-                    setError("Failed to load analysis history.");
-                  }
-                }}
+                onSelect={handleHistorySelect}
                 refreshKey={historyRefreshKey}
               />
             </div>
@@ -259,12 +276,9 @@ function App() {
                   activeTab={activeVizTab}
                   onTabChange={setActiveVizTab}
                   results={results}
-                  onTypeClick={(type: IssueType) => setSelectedType(type)}
-                  onIssueClick={(id: string) => setSelectedIssueId(id)}
-                  onNodeClick={(filePath: string) => {
-                    const issue = results.issues.find((i) => i.files.includes(filePath));
-                    if (issue) setSelectedIssueId(issue.id);
-                  }}
+                  onTypeClick={handleTypeClick}
+                  onIssueClick={handleIssueClick}
+                  onNodeClick={handleNodeClick}
                 />
 
                 <div className="results-grid">

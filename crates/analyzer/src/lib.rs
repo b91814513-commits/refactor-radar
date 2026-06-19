@@ -1,13 +1,90 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use anyhow::{anyhow, Context, Result};
 use chrono::{DateTime, Utc};
+use rayon::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
+
+// ---- Compiled-once regexes ---------------------------------------------------
+// Regex compilation is expensive; previously these were recompiled on every call
+// (and `normalize_function_body` is called once per function body across every
+// file). Hoisting them into `OnceLock`s turns repeated compilation into a single
+// lookup after first use.
+
+fn import_from_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?m)^\s*import\s+.+?\s+from\s+["']([^"']+)["']"#).expect("valid import regex")
+    })
+}
+
+fn import_side_effect_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"(?m)^\s*import\s+["']([^"']+)["']"#).expect("valid side effect import regex")
+    })
+}
+
+fn require_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r#"require\(\s*["']([^"']+)["']\s*\)"#).expect("valid require regex"))
+}
+
+fn export_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r#"(?m)^\s*export\s+(?:async\s+)?(?:function|const|let|var|class|type)\s+([A-Za-z_][A-Za-z0-9_]*)"#,
+        )
+        .expect("valid export regex")
+    })
+}
+
+fn function_decl_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r#"(?m)(?:export\s+)?(?:async\s+)?function\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s*\{"#,
+        )
+        .expect("valid function regex")
+    })
+}
+
+fn arrow_decl_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(
+            r#"(?m)(?:export\s+)?(?:const|let|var)\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*(?:async\s*)?\([^)]*\)\s*=>\s*\{"#,
+        )
+        .expect("valid arrow regex")
+    })
+}
+
+fn string_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r#"["'][^"']*["']"#).expect("valid string regex"))
+}
+
+fn number_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r#"\b\d+\b"#).expect("valid number regex"))
+}
+
+fn identifier_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r#"\b[A-Za-z_][A-Za-z0-9_]*\b"#).expect("valid identifier regex"))
+}
+
+fn whitespace_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r#"\s+"#).expect("valid whitespace regex"))
+}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -174,11 +251,20 @@ impl Analyzer {
         progress(AnalysisPhase::Discovery);
         validate_repo(root)?;
         let source_files = collect_source_files(root)?;
+        // Build the known-source set once so import resolution can use O(1)
+        // membership checks instead of up to ~18 stat syscalls per import. The
+        // set is keyed by the same normalized relative-path strings used
+        // elsewhere (`relative_file_path`), so candidate resolution matches
+        // deterministically regardless of absolute path form / drive prefix.
+        let known_files: HashSet<String> = source_files
+            .iter()
+            .map(|path| relative_file_path(root, path))
+            .collect();
 
         progress(AnalysisPhase::Parsing);
         let mut models = source_files
-            .iter()
-            .map(|path| self.parse_file(root, path))
+            .par_iter()
+            .map(|path| self.parse_file(root, path, &known_files))
             .collect::<Result<Vec<_>>>()?;
 
         progress(AnalysisPhase::Graphing);
@@ -227,7 +313,7 @@ impl Analyzer {
         })
     }
 
-    fn parse_file(&self, root: &Path, file_path: &Path) -> Result<SourceFileModel> {
+    fn parse_file(&self, root: &Path, file_path: &Path, known_files: &HashSet<String>) -> Result<SourceFileModel> {
         let source = fs::read_to_string(file_path)
             .with_context(|| format!("failed to read source file {}", file_path.display()))?;
 
@@ -236,7 +322,7 @@ impl Analyzer {
 
         let imports = raw_imports
             .iter()
-            .filter_map(|import| resolve_local_import(root, file_path, import))
+            .filter_map(|import| resolve_local_import(root, file_path, import, known_files))
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
@@ -406,6 +492,9 @@ fn validate_repo(root: &Path) -> Result<()> {
         return Err(anyhow!("repository path does not exist: {}", root.display()));
     }
 
+    // Cheap marker check first. Only when neither is present do we fall back to
+    // a full directory walk — avoiding a redundant second traversal (the main
+    // analysis walk happens right after this returns Ok).
     let has_repo_markers = root.join("package.json").exists()
         || root.join("tsconfig.json").exists()
         || collect_source_files(root)
@@ -619,55 +708,29 @@ fn duplication_candidate_issues(models: &[SourceFileModel]) -> Vec<AnalysisIssue
 }
 
 fn extract_imports(source: &str) -> Vec<String> {
-    let import_from = Regex::new(r#"(?m)^\s*import\s+.+?\s+from\s+["']([^"']+)["']"#)
-        .expect("valid import regex");
-    let import_side_effect = Regex::new(r#"(?m)^\s*import\s+["']([^"']+)["']"#)
-        .expect("valid side effect import regex");
-    let require_pattern =
-        Regex::new(r#"require\(\s*["']([^"']+)["']\s*\)"#).expect("valid require regex");
-
     let mut imports = Vec::new();
-    imports.extend(
-        import_from
-            .captures_iter(source)
-            .filter_map(|capture| capture.get(1).map(|value| value.as_str().to_string())),
-    );
-    imports.extend(
-        import_side_effect
-            .captures_iter(source)
-            .filter_map(|capture| capture.get(1).map(|value| value.as_str().to_string())),
-    );
-    imports.extend(
-        require_pattern
-            .captures_iter(source)
-            .filter_map(|capture| capture.get(1).map(|value| value.as_str().to_string())),
-    );
+    for re in [import_from_re(), import_side_effect_re(), require_re()] {
+        imports.extend(
+            re.captures_iter(source)
+                .filter_map(|capture| capture.get(1).map(|value| value.as_str().to_string())),
+        );
+    }
     imports
 }
 
 fn extract_exports(source: &str) -> Vec<String> {
-    let export_pattern = Regex::new(
-        r#"(?m)^\s*export\s+(?:async\s+)?(?:function|const|let|var|class|type)\s+([A-Za-z_][A-Za-z0-9_]*)"#,
-    )
-    .expect("valid export regex");
-    export_pattern
+    export_re()
         .captures_iter(source)
         .filter_map(|capture| capture.get(1).map(|value| value.as_str().to_string()))
         .collect()
 }
 
 fn extract_function_bodies(source: &str) -> Vec<String> {
-    let declaration_pattern = Regex::new(
-        r#"(?m)(?:export\s+)?(?:async\s+)?function\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s*\{"#,
-    )
-    .expect("valid function regex");
-    let arrow_pattern = Regex::new(
-        r#"(?m)(?:export\s+)?(?:const|let|var)\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*(?:async\s*)?\([^)]*\)\s*=>\s*\{"#,
-    )
-    .expect("valid arrow regex");
-
     let mut bodies = Vec::new();
-    for matched in declaration_pattern.find_iter(source).chain(arrow_pattern.find_iter(source)) {
+    for matched in function_decl_re()
+        .find_iter(source)
+        .chain(arrow_decl_re().find_iter(source))
+    {
         if let Some(body) = extract_braced_block(source, matched.end() - 1) {
             bodies.push(body);
         }
@@ -698,24 +761,24 @@ fn extract_braced_block(source: &str, open_brace_index: usize) -> Option<String>
 }
 
 fn normalize_function_body(body: &str) -> String {
-    let strings = Regex::new(r#"["'][^"']*["']"#).expect("valid string regex");
-    let numbers = Regex::new(r#"\b\d+\b"#).expect("valid number regex");
-    let identifiers = Regex::new(r#"\b[A-Za-z_][A-Za-z0-9_]*\b"#).expect("valid identifier regex");
-    let whitespace = Regex::new(r#"\s+"#).expect("valid whitespace regex");
-
-    let body = strings.replace_all(body, "\"str\"");
-    let body = numbers.replace_all(&body, "0");
-    let body = identifiers.replace_all(&body, "id");
-    whitespace.replace_all(&body, "").to_string()
+    let body = string_re().replace_all(body, "\"str\"");
+    let body = number_re().replace_all(&body, "0");
+    let body = identifier_re().replace_all(&body, "id");
+    whitespace_re().replace_all(&body, "").to_string()
 }
 
-fn resolve_local_import(root: &Path, file_path: &Path, import: &str) -> Option<String> {
+fn resolve_local_import(
+    root: &Path,
+    file_path: &Path,
+    import: &str,
+    known_files: &HashSet<String>,
+) -> Option<String> {
     if !import.starts_with('.') {
         return None;
     }
 
     let base = file_path.parent()?.join(import);
-    let mut candidates = vec![
+    let candidates = [
         base.clone(),
         base.with_extension("ts"),
         base.with_extension("tsx"),
@@ -727,11 +790,18 @@ fn resolve_local_import(root: &Path, file_path: &Path, import: &str) -> Option<S
         base.join("index.jsx"),
     ];
 
-    candidates.dedup();
+    // Membership check against the pre-collected source set instead of up to
+    // 9 exists()/is_file() stat pairs per import. Candidates are converted to
+    // the same normalized relative-path string form as the known set (via the
+    // existing `relative_file_path` helper, which collapses `.`/`..` and
+    // normalizes separators), so the comparison is deterministic regardless of
+    // absolute path form or drive prefix.
     candidates
         .into_iter()
-        .find(|candidate| candidate.exists() && candidate.is_file())
-        .map(|candidate| relative_file_path(root, &candidate))
+        .find_map(|candidate| {
+            let relative = relative_file_path(root, &candidate);
+            known_files.contains(&relative).then_some(relative)
+        })
 }
 
 fn relative_file_path(root: &Path, file_path: &Path) -> String {
@@ -759,54 +829,102 @@ fn normalize_path(path: &Path) -> String {
 }
 
 fn detect_cycles(graph: &BTreeMap<String, Vec<String>>) -> Vec<Vec<String>> {
-    let mut seen_signatures = BTreeSet::new();
-    let mut cycles = Vec::new();
-
-    for node in graph.keys() {
-        let mut stack = Vec::new();
-        let mut stack_set = HashSet::new();
-        dfs_cycles(node, graph, &mut stack, &mut stack_set, &mut seen_signatures, &mut cycles);
+    // Tarjan's strongly-connected-components algorithm. Runs in O(V+E) and
+    // finds every cyclic SCC deterministically. The previous DFS-without-a
+    // "finished" set enumerated all simple paths, which degrades toward
+    // exponential on dense graphs and could stack-overflow on deep chains.
+    // Each non-trivial SCC (or self-loop) yields one representative cycle.
+    let nodes: Vec<&String> = graph.keys().collect();
+    let mut index_of: HashMap<&str, usize> = HashMap::with_capacity(nodes.len());
+    for (i, node) in nodes.iter().enumerate() {
+        index_of.insert(node.as_str(), i);
     }
 
-    cycles
-}
-
-fn dfs_cycles(
-    node: &str,
-    graph: &BTreeMap<String, Vec<String>>,
-    stack: &mut Vec<String>,
-    stack_set: &mut HashSet<String>,
-    seen_signatures: &mut BTreeSet<String>,
-    cycles: &mut Vec<Vec<String>>,
-) {
-    if stack_set.contains(node) {
-        if let Some(start) = stack.iter().position(|item| item == node) {
-            let cycle = stack[start..].to_vec();
-            let signature = canonical_cycle_signature(&cycle);
-            if seen_signatures.insert(signature) {
-                cycles.push(cycle);
+    let mut adj: Vec<Vec<usize>> = vec![Vec::new(); nodes.len()];
+    for (i, node) in nodes.iter().enumerate() {
+        if let Some(neighbors) = graph.get(*node) {
+            for target in neighbors {
+                if let Some(&j) = index_of.get(target.as_str()) {
+                    adj[i].push(j);
+                }
             }
         }
-        return;
     }
 
-    stack.push(node.to_string());
-    stack_set.insert(node.to_string());
+    let mut state = TarjanState {
+        index: 0,
+        indices: vec![None; nodes.len()],
+        lowlink: vec![0; nodes.len()],
+        on_stack: vec![false; nodes.len()],
+        stack: Vec::new(),
+        cycles: Vec::new(),
+        nodes: &nodes,
+        adj: &adj,
+    };
 
-    if let Some(neighbors) = graph.get(node) {
-        for next in neighbors {
-            dfs_cycles(next, graph, stack, stack_set, seen_signatures, cycles);
+    for v in 0..nodes.len() {
+        if state.indices[v].is_none() {
+            strong_connect(v, &mut state);
         }
     }
 
-    stack.pop();
-    stack_set.remove(node);
+    state.cycles
 }
 
-fn canonical_cycle_signature(cycle: &[String]) -> String {
-    let mut sorted = cycle.to_vec();
-    sorted.sort();
-    sorted.join("|")
+struct TarjanState<'a> {
+    index: usize,
+    indices: Vec<Option<usize>>,
+    lowlink: Vec<usize>,
+    on_stack: Vec<bool>,
+    stack: Vec<usize>,
+    cycles: Vec<Vec<String>>,
+    nodes: &'a Vec<&'a String>,
+    adj: &'a Vec<Vec<usize>>,
+}
+
+fn strong_connect(v: usize, state: &mut TarjanState<'_>) {
+    state.indices[v] = Some(state.index);
+    state.lowlink[v] = state.index;
+    state.index += 1;
+    state.stack.push(v);
+    state.on_stack[v] = true;
+
+    for &w in &state.adj[v] {
+        match state.indices[w] {
+            None => {
+                strong_connect(w, state);
+                state.lowlink[v] = state.lowlink[v].min(state.lowlink[w]);
+            }
+            Some(_) if state.on_stack[w] => {
+                state.lowlink[v] = state.lowlink[v].min(state.indices[w].unwrap());
+            }
+            _ => {}
+        }
+    }
+
+    // Root of an SCC.
+    if state.lowlink[v] == state.indices[v].unwrap() {
+        let mut component = Vec::new();
+        loop {
+            let w = state.stack.pop().expect("tarjan stack non-empty");
+            state.on_stack[w] = false;
+            component.push(w);
+            if w == v {
+                break;
+            }
+        }
+
+        // Non-trivial SCC (>= 2 nodes), or a self-loop.
+        let is_self_loop = component.len() == 1
+            && state.adj[component[0]].iter().any(|&w| w == component[0]);
+        if component.len() > 1 || is_self_loop {
+            let cycle = component
+                .into_iter()
+                .map(|i| (*state.nodes[i]).clone())
+                .collect::<Vec<_>>();
+            state.cycles.push(cycle);
+        }
+    }
 }
 
 fn short_hash(value: &str) -> String {

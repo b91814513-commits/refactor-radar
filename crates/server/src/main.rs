@@ -13,13 +13,26 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use tokio::sync::Semaphore;
 use tower_http::cors::CorsLayer;
 use uuid::Uuid;
+
+/// How many analyses may run concurrently. Bounded to protect filesystem
+/// handles and memory under burst load; sized to available parallelism so
+/// long queueing requests wait rather than oversubscriving the machine.
+fn analysis_concurrency() -> usize {
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+}
 
 #[derive(Clone)]
 struct AppState {
     jobs: Arc<Mutex<HashMap<String, AnalysisJob>>>,
     result_root: PathBuf,
+    /// Bounds the number of concurrent analyses (each holds one permit for the
+    /// duration of its `spawn_blocking` work).
+    analysis_permits: Arc<Semaphore>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,6 +107,7 @@ async fn main() -> Result<()> {
     let state = AppState {
         jobs: Arc::new(Mutex::new(HashMap::new())),
         result_root,
+        analysis_permits: Arc::new(Semaphore::new(analysis_concurrency())),
     };
 
     let app = Router::new()
@@ -151,7 +165,22 @@ async fn start_analysis(
     let analysis_id_for_task = analysis_id.clone();
 
     tokio::spawn(async move {
-        if let Err(error) = run_analysis_job(state_for_task, &analysis_id_for_task, &repo_path).await {
+        // Acquire a permit before doing any blocking work so the number of
+        // concurrent analyses stays bounded. The permit is moved into the
+        // spawn_blocking closure and dropped when the work completes.
+        let permit = match state_for_task.analysis_permits.clone().acquire_owned().await {
+            Ok(permit) => permit,
+            Err(_) => {
+                let _ = update_job(&state, &analysis_id_for_task, |job| {
+                    job.done = true;
+                    job.error = Some("analysis semaphore closed".to_string());
+                    job.completed_at = Some(Utc::now());
+                });
+                return;
+            }
+        };
+
+        if let Err(error) = run_analysis_job(state_for_task, &analysis_id_for_task, &repo_path, permit).await {
             let _ = update_job(&state, &analysis_id_for_task, |job| {
                 job.done = true;
                 job.error = Some(error.to_string());
@@ -166,12 +195,20 @@ async fn start_analysis(
     }))
 }
 
-async fn run_analysis_job(state: AppState, analysis_id: &str, repo_path: &str) -> Result<()> {
+async fn run_analysis_job(
+    state: AppState,
+    analysis_id: &str,
+    repo_path: &str,
+    permit: tokio::sync::OwnedSemaphorePermit,
+) -> Result<()> {
     let analysis_id_owned = analysis_id.to_string();
     let repo_path_owned = repo_path.to_string();
     let state_for_progress = state.clone();
 
-    let mut result = tokio::task::spawn_blocking(move || {
+    // The permit is moved into the blocking closure so it is held for the
+    // entire duration of the analysis and released when the closure returns.
+    let result = tokio::task::spawn_blocking(move || {
+        let _permit = permit; // held until closure ends
         let analyzer = Analyzer::default();
         analyzer.analyze_repo_with_progress(&repo_path_owned, |phase| {
             let _ = update_job(&state_for_progress, &analysis_id_owned, |job| {
@@ -180,7 +217,9 @@ async fn run_analysis_job(state: AppState, analysis_id: &str, repo_path: &str) -
         })
     })
     .await
-    .map_err(|join_error| anyhow!("analysis worker failed: {join_error}"))??;
+    .map_err(|join_error| anyhow!("analysis worker failed: {join_error}"))?;
+
+    let mut result = result?;
 
     result.analysis_id = analysis_id.to_string();
     let result_path = persist_result(&state.result_root, analysis_id, &result)?;
@@ -227,7 +266,15 @@ async fn get_results(
     let result_path = job
         .result_path
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "analysis result not found"))?;
-    let result = read_result(Path::new(&result_path))?;
+    // Disk reads are blocking; move off the async runtime.
+    let result = tokio::task::spawn_blocking(move || read_result(Path::new(&result_path)))
+        .await
+        .map_err(|join_error| {
+            ApiError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("result read task failed: {join_error}"),
+            )
+        })??;
     Ok(Json(result))
 }
 
@@ -239,7 +286,14 @@ async fn get_issue(
     let result_path = job
         .result_path
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "analysis result not found"))?;
-    let result = read_result(Path::new(&result_path))?;
+    let result = tokio::task::spawn_blocking(move || read_result(Path::new(&result_path)))
+        .await
+        .map_err(|join_error| {
+            ApiError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("result read task failed: {join_error}"),
+            )
+        })??;
     result
         .issues
         .into_iter()
@@ -251,9 +305,24 @@ async fn get_issue(
 async fn list_analyses(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
-    let entries = match fs::read_dir(&state.result_root) {
+    // The whole listing does synchronous directory + file reads; run it on a
+    // blocking thread so the Tokio worker isn't stalled.
+    let result_root = state.result_root.clone();
+    let items = tokio::task::spawn_blocking(move || list_analyses_blocking(&result_root))
+        .await
+        .map_err(|join_error| {
+            ApiError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("list task failed: {join_error}"),
+            )
+        })?;
+    Ok(Json(items))
+}
+
+fn list_analyses_blocking(result_root: &Path) -> Vec<serde_json::Value> {
+    let entries = match fs::read_dir(result_root) {
         Ok(entries) => entries,
-        Err(_) => return Ok(Json(vec![])),
+        Err(_) => return vec![],
     };
 
     let mut items: Vec<serde_json::Value> = entries
@@ -286,7 +355,7 @@ async fn list_analyses(
     });
 
     items.truncate(20);
-    Ok(Json(items))
+    items
 }
 
 fn cleanup_old_results(result_root: &Path, max_files: usize) {
@@ -325,7 +394,13 @@ fn cleanup_old_results(result_root: &Path, max_files: usize) {
 fn persist_result(result_root: &Path, analysis_id: &str, result: &AnalysisResult) -> Result<PathBuf> {
     let file_path = result_root.join(format!("{analysis_id}.json"));
     let json = serde_json::to_vec_pretty(result)?;
-    fs::write(&file_path, json).with_context(|| format!("failed to write {}", file_path.display()))?;
+    // Atomic write: serialize to a temp sibling file, then rename. Prevents
+    // `list_analyses`/`get_results` from observing a half-written file.
+    let temp_path = result_root.join(format!("{analysis_id}.json.tmp"));
+    fs::write(&temp_path, &json)
+        .with_context(|| format!("failed to write {}", temp_path.display()))?;
+    fs::rename(&temp_path, &file_path)
+        .with_context(|| format!("failed to finalize {}", file_path.display()))?;
     Ok(file_path)
 }
 

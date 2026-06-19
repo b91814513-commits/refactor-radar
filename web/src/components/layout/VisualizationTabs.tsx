@@ -1,10 +1,25 @@
+import { lazy, Suspense } from "react";
+
 import { useLocale, type TranslationKey } from "../../lib/i18n";
-import type { AnalysisIssue, AnalysisResult, IssueType } from "../../lib/types";
-import { FileMetricsChart } from "../charts/FileMetricsChart";
-import { IssueDistributionChart } from "../charts/IssueDistributionChart";
-import { PriorityRankingChart } from "../charts/PriorityRankingChart";
-import { SeverityBreakdownChart } from "../charts/SeverityBreakdownChart";
-import { DependencyGraph } from "../graph/DependencyGraph";
+import type { AnalysisResult, IssueType } from "../../lib/types";
+
+// Lazy-load the heavy chart + graph components so recharts and d3-force stay
+// out of the initial bundle. Each chunk is fetched only when its tab is opened.
+const IssueDistributionChart = lazy(() =>
+  import("../charts/IssueDistributionChart").then((m) => ({ default: m.IssueDistributionChart })),
+);
+const SeverityBreakdownChart = lazy(() =>
+  import("../charts/SeverityBreakdownChart").then((m) => ({ default: m.SeverityBreakdownChart })),
+);
+const FileMetricsChart = lazy(() =>
+  import("../charts/FileMetricsChart").then((m) => ({ default: m.FileMetricsChart })),
+);
+const PriorityRankingChart = lazy(() =>
+  import("../charts/PriorityRankingChart").then((m) => ({ default: m.PriorityRankingChart })),
+);
+const DependencyGraph = lazy(() =>
+  import("../graph/DependencyGraph").then((m) => ({ default: m.DependencyGraph })),
+);
 
 export type VizTab = "overview" | "files" | "priority" | "graph";
 
@@ -50,34 +65,36 @@ export function VisualizationTabs({
       </div>
 
       <div className="viz-container">
-        {activeTab === "overview" && (
-          <div className="chart-row">
-            <IssueDistributionChart
+        <Suspense fallback={<div className="chart-loading">{t("chart.loading")}</div>}>
+          {activeTab === "overview" && (
+            <div className="chart-row">
+              <IssueDistributionChart
+                issues={results.issues}
+                onTypeClick={onTypeClick}
+              />
+              <SeverityBreakdownChart issues={results.issues} />
+            </div>
+          )}
+
+          {activeTab === "files" && (
+            <FileMetricsChart files={results.files} />
+          )}
+
+          {activeTab === "priority" && (
+            <PriorityRankingChart
               issues={results.issues}
-              onTypeClick={onTypeClick}
+              onIssueClick={onIssueClick}
             />
-            <SeverityBreakdownChart issues={results.issues} />
-          </div>
-        )}
+          )}
 
-        {activeTab === "files" && (
-          <FileMetricsChart files={results.files} />
-        )}
-
-        {activeTab === "priority" && (
-          <PriorityRankingChart
-            issues={results.issues}
-            onIssueClick={onIssueClick}
-          />
-        )}
-
-        {activeTab === "graph" && (
-          <DependencyGraph
-            files={results.files}
-            issues={results.issues}
-            onNodeClick={onNodeClick}
-          />
-        )}
+          {activeTab === "graph" && (
+            <DependencyGraph
+              files={results.files}
+              issues={results.issues}
+              onNodeClick={onNodeClick}
+            />
+          )}
+        </Suspense>
       </div>
     </div>
   );

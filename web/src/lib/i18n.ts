@@ -73,6 +73,8 @@ const translations = {
   "chart.noIssues": { en: "No issues to display.", zh: "暂无问题。" },
   "chart.noFiles": { en: "No files to display.", zh: "暂无文件。" },
   "chart.noGraph": { en: "No dependency relationships to visualize.", zh: "无可视化的依赖关系。" },
+  "chart.hiddenNodes": { en: "+{count} hidden", zh: "+{count} 已隐藏" },
+  "chart.loading": { en: "Loading\u2026", zh: "加载中\u2026" },
   "chart.issuesUnit": { en: "issues", zh: "个问题" },
   "chart.score": { en: "Score", zh: "得分" },
 

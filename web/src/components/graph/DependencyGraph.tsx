@@ -51,6 +51,13 @@ interface ViewBox {
   h: number;
 }
 
+interface GraphFrame {
+  nodes: RenderNode[];
+  links: RenderLink[];
+}
+
+const EMPTY_FRAME: GraphFrame = { nodes: [], links: [] };
+
 function nodeRadius(node: GraphNode): number {
   return Math.max(7, Math.min(18, 7 + node.fanIn * 2));
 }
@@ -72,8 +79,11 @@ export function DependencyGraph({
   const { t } = useLocale();
 
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
-  const [nodes, setNodes] = useState<RenderNode[]>([]);
-  const [links, setLinks] = useState<RenderLink[]>([]);
+  // Single frame holds both nodes and links so one setState per render covers
+  // the whole simulation step (previously two setStates per tick).
+  const [frame, setFrame] = useState<GraphFrame>(EMPTY_FRAME);
+  // nodeById mirrors `frame.nodes` for O(1) lookup in render + drag paths.
+  const nodeById = useMemo(() => new Map(frame.nodes.map((n) => [n.id, n])), [frame.nodes]);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [viewBox, setViewBox] = useState<ViewBox>({ x: 0, y: 0, w: 800, h: 480 });
   const [isPanning, setIsPanning] = useState(false);
@@ -127,13 +137,13 @@ export function DependencyGraph({
       };
     });
 
-    const nodeById = new Map(simNodes.map((n) => [n.id, n]));
+    const simNodeById = new Map(simNodes.map((n) => [n.id, n]));
 
     const simLinks: SimLink[] = graphData.links
-      .filter((l) => nodeById.has(l.source) && nodeById.has(l.target))
+      .filter((l) => simNodeById.has(l.source) && simNodeById.has(l.target))
       .map((l) => ({
-        source: nodeById.get(l.source)!,
-        target: nodeById.get(l.target)!,
+        source: simNodeById.get(l.source)!,
+        target: simNodeById.get(l.target)!,
         isCyclic: l.isCyclic,
       }));
 
@@ -145,16 +155,22 @@ export function DependencyGraph({
       .alphaDecay(0.04)
       .velocityDecay(0.45);
 
-    sim.on("tick", () => {
-      setNodes(
-        simNodes.map((sn) => ({
+    // Coalesce ticks into a single render per animation frame. Previously every
+    // tick (~60/s while settling) issued two setStates and a full SVG reconcile;
+    // now a dirty flag just schedules one rAF that builds one frame.
+    let dirty = false;
+    let rafId = 0;
+
+    const flush = () => {
+      rafId = 0;
+      dirty = false;
+      setFrame({
+        nodes: simNodes.map((sn) => ({
           ...sn.graphNode,
           x: sn.x ?? 0,
           y: sn.y ?? 0,
         })),
-      );
-      setLinks(
-        simLinks.map((sl) => {
+        links: simLinks.map((sl) => {
           const src = sl.source as SimNode;
           const tgt = sl.target as SimNode;
           return {
@@ -167,12 +183,19 @@ export function DependencyGraph({
             y2: tgt.y ?? 0,
           };
         }),
-      );
+      });
+    };
+
+    sim.on("tick", () => {
+      if (dirty) return;
+      dirty = true;
+      rafId = requestAnimationFrame(flush);
     });
 
     simRef.current = sim;
     return () => {
       sim.stop();
+      if (rafId !== 0) cancelAnimationFrame(rafId);
       simRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally exclude containerSize
@@ -210,7 +233,7 @@ export function DependencyGraph({
     if (nodeId) {
       e.preventDefault();
       dragNodeId.current = nodeId;
-      const node = nodes.find((n) => n.id === nodeId);
+      const node = nodeById.get(nodeId);
       if (node) {
         const pt = svgToVb(e.clientX, e.clientY);
         dragOffset.current = { dx: node.x - pt.x, dy: node.y - pt.y };
@@ -339,6 +362,11 @@ export function DependencyGraph({
             <span className="graph-legend-dot" aria-hidden="true" style={{ background: "#3b82f6" }} />
             {t("legend.normal")}
           </span>
+          {graphData.hiddenCount > 0 && (
+            <span className="graph-legend-item" title={t("chart.dependencyGraph")}>
+              {t("chart.hiddenNodes").replace("{count}", String(graphData.hiddenCount))}
+            </span>
+          )}
         </div>
       </div>
       <div ref={containerRef} className="graph-container">
@@ -382,15 +410,14 @@ export function DependencyGraph({
 
           {/* Links */}
           <g>
-            {links.map((link) => {
+            {frame.links.map((link) => {
               const dimmed =
                 connectedSet &&
                 !connectedSet.has(link.source) &&
                 !connectedSet.has(link.target);
               const opacity = dimmed ? 0.08 : 1;
-              // Shorten the line to stop at the node radius
-              const srcNode = nodes.find((n) => n.id === link.source);
-              const tgtNode = nodes.find((n) => n.id === link.target);
+              // Shorten the line to stop at the node radius (O(1) lookup).
+              const tgtNode = nodeById.get(link.target);
               const tgtR = tgtNode ? nodeRadius(tgtNode) : 7;
               const dx = link.x2 - link.x1;
               const dy = link.y2 - link.y1;
@@ -419,7 +446,7 @@ export function DependencyGraph({
 
           {/* Nodes */}
           <g>
-            {nodes.map((node) => {
+            {frame.nodes.map((node) => {
               const dimmed = connectedSet && !connectedSet.has(node.id);
               const r = nodeRadius(node);
               const color = nodeColor(node);
