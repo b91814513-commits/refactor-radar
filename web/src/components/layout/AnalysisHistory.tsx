@@ -31,7 +31,7 @@ export function AnalysisHistory({ onSelect, refreshKey }: AnalysisHistoryProps) 
   }, [refreshKey]);
 
   if (loading) {
-    return <p className="empty">{t("history.empty")}</p>;
+    return <p className="empty">{t("chart.loading")}</p>;
   }
 
   if (history.length === 0) {

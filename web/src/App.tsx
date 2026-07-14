@@ -128,6 +128,7 @@ function App() {
       const result = await getResults(id);
       setResults(result);
       setSelectedIssueId(result.issues[0]?.id ?? null);
+      setSelectedType("all");
     } catch {
       setError("Failed to load analysis history.");
     }

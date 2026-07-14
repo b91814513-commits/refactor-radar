@@ -1,4 +1,7 @@
 import type { AnalysisResult } from "./types";
+import type { TranslationKey } from "./i18n";
+
+type T = (key: TranslationKey) => string;
 
 function downloadBlob(content: string, filename: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
@@ -17,8 +20,8 @@ export function exportJSON(result: AnalysisResult) {
   downloadBlob(content, `refactor-radar-${result.analysisId}.json`, "application/json");
 }
 
-export function exportCSV(result: AnalysisResult) {
-  const header = "id,type,severity,confidence,score,files,summary\n";
+export function exportCSV(result: AnalysisResult, t: T) {
+  const header = `${t("export.csv.id")},${t("export.csv.type")},${t("export.csv.severity")},${t("export.csv.confidence")},${t("export.csv.score")},${t("export.csv.files")},${t("export.csv.summary")}\n`;
   const rows = result.issues.map((issue) => {
     const fields = [
       csvEscape(issue.id),
@@ -34,43 +37,43 @@ export function exportCSV(result: AnalysisResult) {
   downloadBlob(header + rows.join("\n"), `refactor-radar-${result.analysisId}.csv`, "text/csv");
 }
 
-export function exportMarkdown(result: AnalysisResult) {
+export function exportMarkdown(result: AnalysisResult, t: T) {
   const lines: string[] = [];
   lines.push(`# Refactor Radar Analysis Report`);
   lines.push(``);
-  lines.push(`- **Repository**: ${result.repoPath}`);
-  lines.push(`- **Analyzed at**: ${result.summary.analyzedAt}`);
-  lines.push(`- **Files**: ${result.summary.fileCount}`);
-  lines.push(`- **Modules**: ${result.summary.moduleCount}`);
-  lines.push(`- **Issues**: ${result.summary.issueCount} (${result.summary.highPriorityCount} high priority)`);
+  lines.push(`- **${t("export.md.repository")}**: ${result.repoPath}`);
+  lines.push(`- **${t("export.md.analyzedAt")}**: ${result.summary.analyzedAt}`);
+  lines.push(`- **${t("export.md.files")}**: ${result.summary.fileCount}`);
+  lines.push(`- **${t("export.md.modules")}**: ${result.summary.moduleCount}`);
+  lines.push(`- **${t("export.md.issues")}**: ${result.summary.issueCount} (${result.summary.highPriorityCount} ${t("export.md.highPriority")})`);
   lines.push(``);
-  lines.push(`## Issues`);
+  lines.push(`## ${t("export.md.issuesSection")}`);
   lines.push(``);
-  lines.push(`| # | Type | Severity | Score | Files | Summary |`);
+  lines.push(`| # | ${t("export.csv.type")} | ${t("export.csv.severity")} | ${t("export.csv.score")} | ${t("export.csv.files")} | ${t("export.csv.summary")} |`);
   lines.push(`|---|------|----------|-------|-------|---------|`);
 
   result.issues.forEach((issue, i) => {
     lines.push(
-      `| ${i + 1} | ${issue.issueType} | ${issue.severity} | ${issue.priorityScore.toFixed(1)} | ${issue.files.join(", ")} | ${issue.summary} |`
+      `| ${i + 1} | ${issue.issueType} | ${issue.severity} | ${issue.priorityScore.toFixed(1)} | ${mdEscape(issue.files.join(", "))} | ${mdEscape(issue.summary)} |`
     );
   });
 
   lines.push(``);
-  lines.push(`## Details`);
+  lines.push(`## ${t("export.md.details")}`);
   lines.push(``);
 
   result.issues.forEach((issue) => {
     lines.push(`### ${issue.title}`);
     lines.push(``);
-    lines.push(`- **Type**: ${issue.issueType}`);
-    lines.push(`- **Severity**: ${issue.severity} | **Confidence**: ${issue.confidence}`);
-    lines.push(`- **Priority Score**: ${issue.priorityScore.toFixed(1)}`);
+    lines.push(`- **${t("export.csv.type")}**: ${issue.issueType}`);
+    lines.push(`- **${t("export.csv.severity")}**: ${issue.severity} | **${t("export.csv.confidence")}**: ${issue.confidence}`);
+    lines.push(`- **${t("export.csv.score")}**: ${issue.priorityScore.toFixed(1)}`);
     lines.push(``);
     lines.push(issue.summary);
     lines.push(``);
 
     if (issue.evidence.length > 0) {
-      lines.push(`**Evidence:**`);
+      lines.push(`**${t("export.md.evidence")}:**`);
       issue.evidence.forEach((e) => {
         lines.push(`- ${e.label}: ${e.detail}`);
       });
@@ -78,7 +81,7 @@ export function exportMarkdown(result: AnalysisResult) {
     }
 
     if (issue.suggestedActions.length > 0) {
-      lines.push(`**Suggested actions:**`);
+      lines.push(`**${t("export.md.suggestedActions")}:**`);
       issue.suggestedActions.forEach((a) => {
         lines.push(`- **${a.title}**: ${a.detail}`);
       });
@@ -97,4 +100,8 @@ function csvEscape(value: string): string {
     return `"${value.replace(/"/g, '""')}"`;
   }
   return value;
+}
+
+function mdEscape(value: string): string {
+  return value.replace(/\|/g, "\\|");
 }

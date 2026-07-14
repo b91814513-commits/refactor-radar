@@ -88,7 +88,11 @@ impl ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        (self.status, Json(serde_json::json!({ "error": self.message }))).into_response()
+        (
+            self.status,
+            Json(serde_json::json!({ "error": self.message })),
+        )
+            .into_response()
     }
 }
 
@@ -117,6 +121,7 @@ async fn main() -> Result<()> {
         .route("/api/analyze/:id/results", get(get_results))
         .route("/api/analyze/:id/issues/:issue_id", get(get_issue))
         .route("/api/analyses", get(list_analyses))
+        .route("/api/analyses/:id", get(get_analysis_by_id))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -168,7 +173,12 @@ async fn start_analysis(
         // Acquire a permit before doing any blocking work so the number of
         // concurrent analyses stays bounded. The permit is moved into the
         // spawn_blocking closure and dropped when the work completes.
-        let permit = match state_for_task.analysis_permits.clone().acquire_owned().await {
+        let permit = match state_for_task
+            .analysis_permits
+            .clone()
+            .acquire_owned()
+            .await
+        {
             Ok(permit) => permit,
             Err(_) => {
                 let _ = update_job(&state, &analysis_id_for_task, |job| {
@@ -180,7 +190,9 @@ async fn start_analysis(
             }
         };
 
-        if let Err(error) = run_analysis_job(state_for_task, &analysis_id_for_task, &repo_path, permit).await {
+        if let Err(error) =
+            run_analysis_job(state_for_task, &analysis_id_for_task, &repo_path, permit).await
+        {
             let _ = update_job(&state, &analysis_id_for_task, |job| {
                 job.done = true;
                 job.error = Some(error.to_string());
@@ -251,7 +263,26 @@ async fn get_results(
     State(state): State<AppState>,
     AxumPath(analysis_id): AxumPath<String>,
 ) -> Result<Json<AnalysisResult>, ApiError> {
-    let job = get_job(&state, &analysis_id)?;
+    // Try in-memory job first; fall back to persisted file for post-restart access.
+    let job = match get_job(&state, &analysis_id) {
+        Ok(job) => job,
+        Err(_) => {
+            let file_path = state.result_root.join(format!("{analysis_id}.json"));
+            if !file_path.exists() {
+                return Err(ApiError::new(StatusCode::NOT_FOUND, "analysis not found"));
+            }
+            let result = tokio::task::spawn_blocking(move || read_result(&file_path))
+                .await
+                .map_err(|join_error| {
+                    ApiError::new(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("result read task failed: {join_error}"),
+                    )
+                })??;
+            return Ok(Json(result));
+        }
+    };
+
     if !job.done {
         return Err(ApiError::new(
             StatusCode::CONFLICT,
@@ -319,6 +350,27 @@ async fn list_analyses(
     Ok(Json(items))
 }
 
+/// Load a persisted analysis by ID directly from disk.
+/// This works even after server restart when in-memory jobs are gone.
+async fn get_analysis_by_id(
+    State(state): State<AppState>,
+    AxumPath(analysis_id): AxumPath<String>,
+) -> Result<Json<AnalysisResult>, ApiError> {
+    let file_path = state.result_root.join(format!("{analysis_id}.json"));
+    if !file_path.exists() {
+        return Err(ApiError::new(StatusCode::NOT_FOUND, "analysis not found"));
+    }
+    let result = tokio::task::spawn_blocking(move || read_result(&file_path))
+        .await
+        .map_err(|join_error| {
+            ApiError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("result read task failed: {join_error}"),
+            )
+        })??;
+    Ok(Json(result))
+}
+
 fn list_analyses_blocking(result_root: &Path) -> Vec<serde_json::Value> {
     let entries = match fs::read_dir(result_root) {
         Ok(entries) => entries,
@@ -327,17 +379,11 @@ fn list_analyses_blocking(result_root: &Path) -> Vec<serde_json::Value> {
 
     let mut items: Vec<serde_json::Value> = entries
         .filter_map(|entry| entry.ok())
-        .filter(|entry| {
-            entry.path().extension().and_then(|ext| ext.to_str()) == Some("json")
-        })
+        .filter(|entry| entry.path().extension().and_then(|ext| ext.to_str()) == Some("json"))
         .filter_map(|entry| {
             let bytes = fs::read(entry.path()).ok()?;
             let result: AnalysisResult = serde_json::from_slice(&bytes).ok()?;
-            let id = entry
-                .path()
-                .file_stem()?
-                .to_string_lossy()
-                .to_string();
+            let id = entry.path().file_stem()?.to_string_lossy().to_string();
             Some(serde_json::json!({
                 "id": id,
                 "repoPath": result.repo_path,
@@ -366,13 +412,7 @@ fn cleanup_old_results(result_root: &Path, max_files: usize) {
 
     let mut files: Vec<_> = entries
         .filter_map(|entry| entry.ok())
-        .filter(|entry| {
-            entry
-                .path()
-                .extension()
-                .and_then(|ext| ext.to_str())
-                == Some("json")
-        })
+        .filter(|entry| entry.path().extension().and_then(|ext| ext.to_str()) == Some("json"))
         .collect();
 
     if files.len() <= max_files {
@@ -391,7 +431,11 @@ fn cleanup_old_results(result_root: &Path, max_files: usize) {
     }
 }
 
-fn persist_result(result_root: &Path, analysis_id: &str, result: &AnalysisResult) -> Result<PathBuf> {
+fn persist_result(
+    result_root: &Path,
+    analysis_id: &str,
+    result: &AnalysisResult,
+) -> Result<PathBuf> {
     let file_path = result_root.join(format!("{analysis_id}.json"));
     let json = serde_json::to_vec_pretty(result)?;
     // Atomic write: serialize to a temp sibling file, then rename. Prevents

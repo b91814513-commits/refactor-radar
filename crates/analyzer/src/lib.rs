@@ -33,7 +33,9 @@ fn import_side_effect_re() -> &'static Regex {
 
 fn require_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r#"require\(\s*["']([^"']+)["']\s*\)"#).expect("valid require regex"))
+    RE.get_or_init(|| {
+        Regex::new(r#"require\(\s*["']([^"']+)["']\s*\)"#).expect("valid require regex")
+    })
 }
 
 fn export_re() -> &'static Regex {
@@ -242,7 +244,11 @@ impl Analyzer {
         self.analyze_repo_with_progress(repo_path, |_| {})
     }
 
-    pub fn analyze_repo_with_progress<P, F>(&self, repo_path: P, mut progress: F) -> Result<AnalysisResult>
+    pub fn analyze_repo_with_progress<P, F>(
+        &self,
+        repo_path: P,
+        mut progress: F,
+    ) -> Result<AnalysisResult>
     where
         P: AsRef<Path>,
         F: FnMut(AnalysisPhase),
@@ -286,7 +292,10 @@ impl Analyzer {
                 .then_with(|| left.title.cmp(&right.title))
         });
 
-        let files = models.into_iter().map(|model| model.analyzed).collect::<Vec<_>>();
+        let files = models
+            .into_iter()
+            .map(|model| model.analyzed)
+            .collect::<Vec<_>>();
         let summary = AnalysisSummary {
             file_count: files.len(),
             module_count: graph.len(),
@@ -313,7 +322,12 @@ impl Analyzer {
         })
     }
 
-    fn parse_file(&self, root: &Path, file_path: &Path, known_files: &HashSet<String>) -> Result<SourceFileModel> {
+    fn parse_file(
+        &self,
+        root: &Path,
+        file_path: &Path,
+        known_files: &HashSet<String>,
+    ) -> Result<SourceFileModel> {
         let source = fs::read_to_string(file_path)
             .with_context(|| format!("failed to read source file {}", file_path.display()))?;
 
@@ -489,7 +503,10 @@ impl Analyzer {
 
 fn validate_repo(root: &Path) -> Result<()> {
     if !root.exists() {
-        return Err(anyhow!("repository path does not exist: {}", root.display()));
+        return Err(anyhow!(
+            "repository path does not exist: {}",
+            root.display()
+        ));
     }
 
     // Cheap marker check first. Only when neither is present do we fall back to
@@ -611,8 +628,10 @@ fn circular_dependency_issues(
 
     cycles
         .into_iter()
-        .map(|cycle| {
-            let joined = cycle.join(" -> ");
+        .map(|mut cycle| {
+            // Sort members for deterministic IDs and readable evidence.
+            cycle.sort();
+            let members_display = cycle.join(", ");
             let average_fan_out = cycle
                 .iter()
                 .filter_map(|path| metrics_by_path.get(path.as_str()))
@@ -635,8 +654,8 @@ fn circular_dependency_issues(
                     ..IssueMetrics::default()
                 },
                 evidence: vec![EvidenceItem {
-                    label: "cycle".into(),
-                    detail: joined,
+                    label: "scc_members".into(),
+                    detail: members_display,
                 }],
                 suggested_actions: vec![
                     SuggestedAction {
@@ -796,12 +815,10 @@ fn resolve_local_import(
     // existing `relative_file_path` helper, which collapses `.`/`..` and
     // normalizes separators), so the comparison is deterministic regardless of
     // absolute path form or drive prefix.
-    candidates
-        .into_iter()
-        .find_map(|candidate| {
-            let relative = relative_file_path(root, &candidate);
-            known_files.contains(&relative).then_some(relative)
-        })
+    candidates.into_iter().find_map(|candidate| {
+        let relative = relative_file_path(root, &candidate);
+        known_files.contains(&relative).then_some(relative)
+    })
 }
 
 fn relative_file_path(root: &Path, file_path: &Path) -> String {
@@ -915,8 +932,8 @@ fn strong_connect(v: usize, state: &mut TarjanState<'_>) {
         }
 
         // Non-trivial SCC (>= 2 nodes), or a self-loop.
-        let is_self_loop = component.len() == 1
-            && state.adj[component[0]].iter().any(|&w| w == component[0]);
+        let is_self_loop =
+            component.len() == 1 && state.adj[component[0]].iter().any(|&w| w == component[0]);
         if component.len() > 1 || is_self_loop {
             let cycle = component
                 .into_iter()
@@ -928,9 +945,8 @@ fn strong_connect(v: usize, state: &mut TarjanState<'_>) {
 }
 
 fn short_hash(value: &str) -> String {
-    let hash = value
-        .bytes()
-        .fold(0u64, |acc, byte| acc.wrapping_mul(109).wrapping_add(byte as u64));
+    let hash = value.bytes().fold(0u64, |acc, byte| {
+        acc.wrapping_mul(109).wrapping_add(byte as u64)
+    });
     format!("{hash:x}")
 }
-

@@ -31,10 +31,10 @@ export function ExportMenu({ results }: ExportMenuProps) {
         exportJSON(results);
         break;
       case "csv":
-        exportCSV(results);
+        exportCSV(results, t);
         break;
       case "markdown":
-        exportMarkdown(results);
+        exportMarkdown(results, t);
         break;
     }
     setOpen(false);
@@ -49,7 +49,7 @@ export function ExportMenu({ results }: ExportMenuProps) {
         aria-haspopup="true"
       >
         {t("export.button")}
-        <span className="export-toggle-arrow" aria-hidden="true">\u25BE</span>
+        <span className="export-toggle-arrow" aria-hidden="true">{"\u25BE"}</span>
       </button>
       {open && (
         <div className="export-dropdown" role="menu">
