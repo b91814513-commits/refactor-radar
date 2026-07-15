@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type KeyboardEvent } from "react";
 
 import { useLocale, type TranslationKey } from "../../lib/i18n";
 import type { AnalysisResult, IssueType } from "../../lib/types";
@@ -50,21 +50,42 @@ export function VisualizationTabs({
 }: VisualizationTabsProps) {
   const { t } = useLocale();
 
+  function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, current: VizTab) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const currentIndex = TAB_KEYS.indexOf(current);
+    const direction = event.key === "ArrowRight" ? 1 : -1;
+    const next = TAB_KEYS[(currentIndex + direction + TAB_KEYS.length) % TAB_KEYS.length];
+    onTabChange(next);
+    document.getElementById(`viz-tab-${next}`)?.focus();
+  }
+
   return (
     <div className="viz-section">
-      <div className="viz-tabs">
+      <div className="viz-tabs" role="tablist" aria-label={t("a11y.analysisVisualizations")}>
         {TAB_KEYS.map((key) => (
           <button
             key={key}
+            id={`viz-tab-${key}`}
             className={activeTab === key ? "viz-tab active" : "viz-tab"}
             onClick={() => onTabChange(key)}
+            onKeyDown={(event) => handleTabKeyDown(event, key)}
+            role="tab"
+            aria-selected={activeTab === key}
+            aria-controls="viz-panel"
+            tabIndex={activeTab === key ? 0 : -1}
           >
             {t(TAB_I18N[key])}
           </button>
         ))}
       </div>
 
-      <div className="viz-container">
+      <div
+        className="viz-container"
+        id="viz-panel"
+        role="tabpanel"
+        aria-labelledby={`viz-tab-${activeTab}`}
+      >
         <Suspense fallback={<div className="chart-loading">{t("chart.loading")}</div>}>
           {activeTab === "overview" && (
             <div className="chart-row">

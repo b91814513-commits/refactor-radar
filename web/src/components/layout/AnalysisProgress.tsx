@@ -33,7 +33,15 @@ export function AnalysisProgress({ phase, loading }: AnalysisProgressProps) {
   }
 
   return (
-    <div className="progress-steps" role="progressbar" aria-valuenow={currentIndex + 1} aria-valuemin={1} aria-valuemax={PHASES.length}>
+    <div
+      className="progress-steps"
+      role="progressbar"
+      aria-valuenow={currentIndex + 1}
+      aria-valuemin={1}
+      aria-valuemax={PHASES.length}
+      aria-label={t(PHASE_I18N[phase])}
+      aria-live="polite"
+    >
       {PHASES.map((p, i) => {
         const isComplete = i < currentIndex || (!loading && phase === "done");
         const isCurrent = i === currentIndex && loading;

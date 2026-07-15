@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from "react";
+import { Braces, ChevronDown, Download, FileText, Table2 } from "lucide-react";
 
 import { exportCSV, exportJSON, exportMarkdown } from "../../lib/export";
 import { useLocale } from "../../lib/i18n";
@@ -48,18 +49,22 @@ export function ExportMenu({ results }: ExportMenuProps) {
         aria-expanded={open}
         aria-haspopup="true"
       >
+        <Download size={15} aria-hidden="true" />
         {t("export.button")}
-        <span className="export-toggle-arrow" aria-hidden="true">{"\u25BE"}</span>
+        <ChevronDown className="export-toggle-arrow" size={14} aria-hidden="true" />
       </button>
       {open && (
         <div className="export-dropdown" role="menu">
           <button className="export-option" role="menuitem" onClick={() => handleExport("json")}>
+            <Braces size={15} aria-hidden="true" />
             {t("export.json")}
           </button>
           <button className="export-option" role="menuitem" onClick={() => handleExport("csv")}>
+            <Table2 size={15} aria-hidden="true" />
             {t("export.csv")}
           </button>
           <button className="export-option" role="menuitem" onClick={() => handleExport("markdown")}>
+            <FileText size={15} aria-hidden="true" />
             {t("export.markdown")}
           </button>
         </div>

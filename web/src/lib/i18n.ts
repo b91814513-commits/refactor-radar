@@ -25,6 +25,10 @@ const translations = {
   "analyzer.analyzing": { en: "Analyzing\u2026", zh: "分析中\u2026" },
   "analyzer.ready": { en: "Ready", zh: "就绪" },
   "analyzer.errorEmpty": { en: "Enter a repository path.", zh: "请输入代码库路径。" },
+  "analyzer.errorTimeout": {
+    en: "Analysis timed out. Check that the local server is still running.",
+    zh: "分析超时。请检查本地服务是否仍在运行。",
+  },
   "analyzer.recent": { en: "Recent repositories", zh: "最近分析" },
   "analyzer.noRecent": { en: "No recent analyses yet.", zh: "暂无分析记录。" },
 
@@ -156,6 +160,15 @@ const translations = {
   "history.empty": { en: "No analysis history yet.", zh: "\u6682\u65e0\u5206\u6790\u5386\u53f2\u3002" },
   "history.issues": { en: "issues", zh: "\u4e2a\u95ee\u9898" },
   "history.highPriority": { en: "high priority", zh: "\u9ad8\u4f18\u5148\u7ea7" },
+  "history.errorLoad": {
+    en: "Could not load this analysis. Check the local server and try again.",
+    zh: "无法加载此分析。请检查本地服务后重试。",
+  },
+
+  // Navigation and accessibility
+  "nav.skipToWorkspace": { en: "Skip to workspace", zh: "跳转到工作区" },
+  "a11y.filterByIssueType": { en: "Filter by issue type", zh: "按问题类型筛选" },
+  "a11y.analysisVisualizations": { en: "Analysis visualizations", zh: "分析可视化" },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

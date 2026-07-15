@@ -1,10 +1,12 @@
+import { Boxes, CopyCheck, Network, RefreshCcw, ScanSearch, type LucideIcon } from "lucide-react";
+
 import { useLocale, type TranslationKey } from "../../lib/i18n";
 
-const FEATURES: { icon: string; key: TranslationKey }[] = [
-  { icon: "\u{1F4E6}", key: "empty.featureLargeModule" },
-  { icon: "\u{1F517}", key: "empty.featureHotspot" },
-  { icon: "\u{1F504}", key: "empty.featureCycle" },
-  { icon: "\u{1F4CB}", key: "empty.featureDuplication" },
+const FEATURES: { icon: LucideIcon; key: TranslationKey }[] = [
+  { icon: Boxes, key: "empty.featureLargeModule" },
+  { icon: Network, key: "empty.featureHotspot" },
+  { icon: RefreshCcw, key: "empty.featureCycle" },
+  { icon: CopyCheck, key: "empty.featureDuplication" },
 ];
 
 export function EmptyState() {
@@ -12,24 +14,24 @@ export function EmptyState() {
 
   return (
     <div className="empty-state">
-      <div className="radar-scan" aria-hidden="true">
-        <div className="scan-ring scan-ring-1" />
-        <div className="scan-ring scan-ring-2" />
-        <div className="scan-ring scan-ring-3" />
-        <div className="scan-line" />
-        <div className="scan-center" />
+      <div className="empty-state-heading">
+        <span className="empty-state-icon" aria-hidden="true"><ScanSearch size={22} /></span>
+        <div>
+          <h3 className="empty-state-title">{t("empty.title")}</h3>
+          <p className="empty-state-hint">{t("empty.hint")}</p>
+        </div>
       </div>
 
-      <h3 className="empty-state-title">{t("empty.title")}</h3>
-      <p className="empty-state-hint">{t("empty.hint")}</p>
-
       <div className="empty-features">
-        {FEATURES.map((f) => (
-          <div key={f.key} className="empty-feature">
-            <span className="empty-feature-icon" aria-hidden="true">{f.icon}</span>
-            <span className="empty-feature-text">{t(f.key)}</span>
+        {FEATURES.map((feature) => {
+          const Icon = feature.icon;
+          return (
+          <div key={feature.key} className="empty-feature">
+              <span className="empty-feature-icon" aria-hidden="true"><Icon size={17} /></span>
+              <span className="empty-feature-text">{t(feature.key)}</span>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

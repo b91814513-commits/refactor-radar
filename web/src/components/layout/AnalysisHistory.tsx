@@ -10,7 +10,7 @@ interface AnalysisHistoryProps {
 }
 
 export function AnalysisHistory({ onSelect, refreshKey }: AnalysisHistoryProps) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const [history, setHistory] = useState<AnalysisHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -49,7 +49,10 @@ export function AnalysisHistory({ onSelect, refreshKey }: AnalysisHistoryProps) 
           <div className="history-item-info">
             <div className="history-item-path" title={item.repoPath}>{item.repoPath}</div>
             <div className="history-item-meta">
-              {new Date(item.analyzedAt).toLocaleString()}
+              {new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-US", {
+                dateStyle: "short",
+                timeStyle: "medium",
+              }).format(new Date(item.analyzedAt))}
             </div>
           </div>
           <div className="history-item-stats">
