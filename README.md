@@ -1,8 +1,7 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/Rust-2021-orange?logo=rust" alt="Rust" />
-  <img src="https://img.shields.io/badge/React-18-blue?logo=react" alt="React" />
-  <img src="https://img.shields.io/badge/TypeScript-5-blue?logo=typescript" alt="TypeScript" />
+  <a href="https://github.com/user/refactor-radar/actions"><img src="https://img.shields.io/github/actions/workflow/status/user/refactor-radar/ci.yml?branch=main" alt="CI Status" /></a>
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" />
+  <img src="https://img.shields.io/badge/rust-stable-orange?logo=rust" alt="Rust" />
 </p>
 
 <p align="center">
@@ -12,8 +11,8 @@
 <h1 align="center">Refactor Radar</h1>
 
 <p align="center">
-  <strong>A local-first refactoring radar for JavaScript and TypeScript.</strong><br />
-  Turn structural signals into an evidence-backed, ranked action plan.
+  <strong>A local-first static analysis tool that answers: "What should we refactor first?"</strong><br />
+  Scan your JS/TS codebase, surface structural issues, and get a ranked, evidence-backed action plan.
 </p>
 
 ---
@@ -22,69 +21,21 @@
 
 Linters tell you which rules were violated. Refactor Radar answers the harder planning question: **what should we refactor first?**
 
-It scans a local JS/TS repository, maps its dependency structure, detects high-impact refactoring opportunities, and ranks every finding with concrete evidence. No cloud, no API keys, and no source code leaves your machine.
-
-- **Evidence over intuition:** every recommendation includes files, metrics, confidence, and suggested actions.
-- **Priorities over noise:** findings are scored so teams can start with the highest-leverage change.
-- **Private and repeatable:** analyses run locally and remain available in persistent history.
+It scans a local JS/TS repository, maps its dependency structure, detects 7 types of high-impact refactoring opportunities, and ranks every finding with concrete evidence — files, metrics, confidence, and suggested actions. No cloud, no API keys, and no source code leaves your machine.
 
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| **Large Module Detection** | Flags files with too many lines, functions, or exports |
-| **Dependency Hotspots** | Identifies files with high fan-in or fan-out |
-| **Circular Dependencies** | Detects cyclic strongly connected components with Tarjan's algorithm |
-| **Duplication Candidates** | Heuristic detection of near-identical function bodies |
-| **Priority Scoring** | Every issue gets a score so you always know what to fix first |
-| **Interactive Charts** | Issue distribution, severity breakdown, file metrics, priority ranking |
-| **Dependency Graph** | Force-directed SVG graph with drag, zoom, pan, and cycle highlighting |
-| **Persistent History** | Reopen recent analyses without rescanning the repository |
-| **Portable Reports** | Export findings as JSON, CSV, or Markdown |
-| **i18n** | Chinese / English toggle with persistent preference |
-
-## Screenshots
-
-<p align="center">
-  <img src="./docs/screenshot-results.png" alt="Analysis results with charts and issue list" width="100%" />
-  <em>Complete workflow: local repository input, structural overview, ranked findings, evidence, and suggested actions.</em>
-</p>
-
-<p align="center">
-  <img src="./docs/screenshot-files.png" alt="File metrics bar chart" width="49%" />
-  <img src="./docs/screenshot-priority.png" alt="Priority ranking chart" width="49%" />
-  <em>Left: Top files by lines / functions / fan-in / fan-out. Right: Priority ranking of top 10 issues.</em>
-</p>
-
-## Architecture
-
-```
-refactor-radar/
-├── crates/
-│   ├── analyzer/     # Core analysis engine (Rust)
-│   │   ├── src/
-│   │   │   └── lib.rs        # File discovery, parsing, graph, rules, scoring
-│   │   └── tests/
-│   │       ├── analysis_fixture.rs
-│   │       └── fixtures/sample_repo/
-│   └── server/       # Axum HTTP API (Rust)
-│       └── src/
-│           └── main.rs       # Job orchestration, result persistence
-├── web/              # React + Vite dashboard (TypeScript)
-│   ├── src/
-│   │   ├── App.tsx
-│   │   ├── lib/
-│   │   │   ├── api.ts        # HTTP client for Rust API
-│   │   │   ├── types.ts      # Shared type definitions
-│   │   │   └── i18n.ts       # Translation dictionary + context
-│   │   └── components/
-│   │       ├── charts/       # Recharts-based visualizations
-│   │       ├── graph/        # D3-force dependency graph
-│   │       └── layout/       # VisualizationTabs
-│   └── package.json
-├── Cargo.toml        # Workspace root
-└── README.md
-```
+- **7 Issue Types Detected** — Large Module, Dependency Hotspot, Circular Dependency, Duplication Candidate, Long Parameter List, Deep Nesting, and God Function
+- **Priority Scoring** — Every issue gets a score so you always know what to fix first
+- **Interactive Dashboard** — Issue distribution, severity breakdown, file metrics, and priority ranking charts
+- **Dependency Graph** — Force-directed SVG graph with drag, zoom, pan, and cycle highlighting
+- **Configuration Support** — Customize thresholds and enabled rules via `.refactor-radar.toml`
+- **Dark Mode** — System-aware theme with manual toggle, persisted preference
+- **Bilingual UI** — Chinese / English toggle with persistent preference
+- **Persistent History** — Reopen recent analyses without rescanning the repository
+- **Portable Reports** — Export findings as JSON, CSV, or Markdown
+- **Responsive Design** — Works on desktop and mobile screens
+- **Graceful Server** — Structured logging (tracing), CLI args (clap), health endpoint, graceful shutdown
 
 ## Quick Start
 
@@ -122,10 +73,77 @@ Dashboard opens on `http://127.0.0.1:4173`.
    - **Dependency Graph** — Interactive force-directed graph with cycle highlighting
 4. Click any issue in the list to see evidence and suggested refactor actions
 
+## Screenshots
+
+<p align="center">
+  <img src="./docs/screenshot-results.png" alt="Analysis results with charts and issue list" width="100%" />
+  <em>Complete workflow: local repository input, structural overview, ranked findings, evidence, and suggested actions.</em>
+</p>
+
+<p align="center">
+  <img src="./docs/screenshot-files.png" alt="File metrics bar chart" width="49%" />
+  <img src="./docs/screenshot-priority.png" alt="Priority ranking chart" width="49%" />
+  <em>Left: Top files by lines / functions / fan-in / fan-out. Right: Priority ranking of top 10 issues.</em>
+</p>
+
+## Architecture
+
+Refactor Radar uses a three-tier architecture:
+
+```mermaid
+graph TB
+    A[React SPA :4173] -->|fetch / JSON| B[Axum API Server :8787]
+    B --> C[Analyzer Crate lib]
+    B --> D[.refactor-radar/analyses/*.json]
+```
+
+| Layer | Technology |
+|-------|-----------|
+| Analysis engine | Rust — regex-based parsing, BTreeMap dependency graph, Tarjan SCC cycle detection, Jaccard duplication |
+| HTTP server | Axum 0.7 + Tokio async runtime + tower-http CORS + tracing + clap |
+| Frontend | React 18 + TypeScript + Vite + React Router |
+| Charts | Recharts (pie, bar, horizontal bar) |
+| Graph | D3-force (force-directed layout) + native SVG rendering |
+
+## Configuration
+
+Create a `.refactor-radar.toml` file in your project root to customize analysis behavior:
+
+```toml
+# Thresholds
+lineThreshold = 45          # Max lines before flagging as Large Module
+functionThreshold = 5       # Max functions before flagging
+fanInThreshold = 2          # Max fan-in before flagging as Dependency Hotspot
+fanOutThreshold = 4         # Max fan-out before flagging as Dependency Hotspot
+longParameterListThreshold = 4  # Max parameters per function
+deepNestingThreshold = 4        # Max nesting depth
+godFunctionThreshold = 10       # Max complexity score per function
+duplicationSimilarityThreshold = 0.7  # Jaccard similarity threshold (0.0–1.0)
+
+# Rules to enable (all enabled by default)
+enabledRules = [
+  "large_module",
+  "dependency_hotspot",
+  "circular_dependency",
+  "duplication_candidate",
+  "long_parameter_list",
+  "deep_nesting",
+  "god_function",
+]
+
+# Glob patterns to exclude
+excludePatterns = [
+  "dist/**",
+  "node_modules/**",
+  "*.test.ts",
+]
+```
+
 ## API Reference
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
+| `/health` | GET | Health check — returns `{ "status": "ok", "version": "..." }` |
 | `/api/analyze` | POST | Start analysis. Body: `{ "repoPath": "..." }` |
 | `/api/analyze/:id/status` | GET | Poll analysis progress (phase, done, error) |
 | `/api/analyze/:id/results` | GET | Fetch full analysis result (files + issues) |
@@ -135,34 +153,57 @@ Dashboard opens on `http://127.0.0.1:4173`.
 
 Results are persisted to `.refactor-radar/analyses/` as JSON files.
 
-## Tech Stack
+## Development
 
-| Layer | Technology |
-|-------|-----------|
-| Analysis engine | Rust - regex-based parsing, BTreeMap dependency graph, Tarjan SCC cycle detection |
-| HTTP server | Axum 0.7 + Tokio async runtime + tower-http CORS |
-| Frontend | React 18 + TypeScript + Vite |
-| Charts | Recharts (pie, bar, horizontal bar) |
-| Graph | D3-force (force-directed layout) + native SVG rendering |
-| Fonts | Geist Sans + Geist Mono (self-hosted through Fontsource) |
+### Build
 
-## Testing
+```bash
+# Build all Rust crates
+cargo build
+
+# Build frontend for production
+cd web && npm run build
+```
+
+### Test
 
 ```bash
 # Rust analyzer tests
 cargo test -p analyzer
 
-# Web UI tests (Vitest)
-cd web && npm run test
+# All Rust tests
+cargo test
 
-# Type check + production build
-cd web && npm run build
+# Web UI tests (Vitest)
+cd web && npm test
+```
+
+### Run locally
+
+```bash
+# Start API server (Terminal 1)
+cargo run -p server
+
+# Start frontend dev server (Terminal 2)
+cd web && npm run dev
+```
+
+### Docker
+
+```bash
+# Build and run with Docker Compose
+docker compose up --build
+
+# Or build the image manually
+docker build -t refactor-radar .
+docker run -p 8787:8787 refactor-radar
 ```
 
 ## Roadmap
 
 - [ ] Support additional languages (Python, Go, Java)
 - [ ] AST-backed semantic duplication detection (tree-sitter)
+- [ ] CI integration — post analysis results as PR comments
 - [ ] Editor integrations (VS Code extension)
 - [ ] PR and diff analysis mode
 - [ ] Opt-in AI explanation layer for complex findings
@@ -170,7 +211,7 @@ cd web && npm run build
 
 ## Contributing
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for development flow and standards.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for development flow, how to add new detection rules, and coding standards.
 
 ## License
 
