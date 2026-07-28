@@ -61,6 +61,9 @@ const translations = {
   "filter.dependency_hotspot": { en: "Dependency Hotspot", zh: "依赖热点" },
   "filter.circular_dependency": { en: "Circular Dependency", zh: "循环依赖" },
   "filter.duplication_candidate": { en: "Duplication Candidate", zh: "重复候选" },
+  "filter.long_parameter_list": { en: "Long Parameter List", zh: "参数列表过长" },
+  "filter.deep_nesting": { en: "Deep Nesting", zh: "嵌套过深" },
+  "filter.god_function": { en: "God Function", zh: "上帝函数" },
 
   // Viz tabs
   "tab.overview": { en: "Overview", zh: "概览" },
@@ -169,6 +172,57 @@ const translations = {
   "nav.skipToWorkspace": { en: "Skip to workspace", zh: "跳转到工作区" },
   "a11y.filterByIssueType": { en: "Filter by issue type", zh: "按问题类型筛选" },
   "a11y.analysisVisualizations": { en: "Analysis visualizations", zh: "分析可视化" },
+
+  // Navigation
+  "nav.dashboard": { en: "Dashboard", zh: "仪表板" },
+  "nav.history": { en: "History", zh: "历史" },
+  "nav.settings": { en: "Settings", zh: "设置" },
+
+  // Theme
+  "theme.toggle": { en: "Toggle theme", zh: "切换主题" },
+  "theme.dark": { en: "Dark", zh: "深色" },
+  "theme.light": { en: "Light", zh: "浅色" },
+
+  // Settings page
+  "settings.title": { en: "Settings", zh: "设置" },
+  "settings.desc": { en: "Configure analysis thresholds and rule toggles.", zh: "配置分析阈值和规则开关。" },
+  "settings.thresholds": { en: "Thresholds", zh: "阈值" },
+  "settings.lineCount": { en: "Line count threshold", zh: "行数阈值" },
+  "settings.functionCount": { en: "Function count threshold", zh: "函数数量阈值" },
+  "settings.fanIn": { en: "Fan-in threshold", zh: "扇入阈值" },
+  "settings.fanOut": { en: "Fan-out threshold", zh: "扇出阈值" },
+  "settings.rules": { en: "Rule toggles", zh: "规则开关" },
+  "settings.ruleLargeModule": { en: "Large Module detection", zh: "大模块检测" },
+  "settings.ruleDependencyHotspot": { en: "Dependency Hotspot detection", zh: "依赖热点检测" },
+  "settings.ruleCircularDependency": { en: "Circular Dependency detection", zh: "循环依赖检测" },
+  "settings.ruleDuplicationCandidate": { en: "Duplication Candidate detection", zh: "重复候选检测" },
+  "settings.saved": { en: "Settings saved", zh: "设置已保存" },
+  "settings.save": { en: "Save settings", zh: "保存设置" },
+  "settings.reset": { en: "Reset to defaults", zh: "恢复默认" },
+
+  // Toast / errors
+  "toast.error": { en: "Error", zh: "错误" },
+  "toast.retry": { en: "Retry", zh: "重试" },
+  "toast.dismiss": { en: "Dismiss", zh: "关闭" },
+  "toast.networkError": { en: "Network error. Please check your connection.", zh: "网络错误，请检查连接。" },
+  "toast.analysisFailed": { en: "Analysis failed", zh: "分析失败" },
+
+  // Skeleton / loading
+  "skeleton.loading": { en: "Loading content…", zh: "加载内容中…" },
+  "skeleton.chart": { en: "Loading chart…", zh: "加载图表中…" },
+  "skeleton.list": { en: "Loading list…", zh: "加载列表中…" },
+
+  // History page
+  "history.pageTitle": { en: "Analysis History", zh: "分析历史" },
+  "history.pageDesc": { en: "Browse and search previous analyses.", zh: "浏览和搜索之前的分析。" },
+  "history.search": { en: "Search by path…", zh: "按路径搜索…" },
+  "history.noResults": { en: "No matching analyses found.", zh: "未找到匹配的分析。" },
+  "history.load": { en: "Load analysis", zh: "加载分析" },
+
+  // Error boundary
+  "error.title": { en: "Something went wrong", zh: "出了点问题" },
+  "error.desc": { en: "An unexpected error occurred. Try refreshing the page.", zh: "发生意外错误，请尝试刷新页面。" },
+  "error.retry": { en: "Try again", zh: "重试" },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

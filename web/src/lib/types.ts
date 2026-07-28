@@ -10,7 +10,10 @@ export type IssueType =
   | "large_module"
   | "dependency_hotspot"
   | "circular_dependency"
-  | "duplication_candidate";
+  | "duplication_candidate"
+  | "long_parameter_list"
+  | "deep_nesting"
+  | "god_function";
 
 export type Severity = "low" | "medium" | "high";
 export type Confidence = "heuristic" | "medium" | "high";
@@ -45,6 +48,11 @@ export interface IssueMetrics {
   fanOut?: number;
   duplicateGroupSize?: number;
   cycleSize?: number;
+  parameterCount?: number;
+  nestingDepth?: number;
+  complexity?: number;
+  startLine?: number;
+  endLine?: number;
 }
 
 export interface SuggestedAction {
@@ -70,6 +78,8 @@ export interface AnalysisIssue {
   evidence: EvidenceItem[];
   suggestedActions: SuggestedAction[];
   aiExplanation?: AiExplanation | null;
+  startLine: number;
+  endLine: number;
 }
 
 export interface AnalysisSummary {

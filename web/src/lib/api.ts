@@ -1,6 +1,26 @@
 import type { AnalysisHistoryItem, AnalysisResult, StatusResponse } from "./types";
 
-const API_BASE = "http://127.0.0.1:8787";
+const API_BASE = import.meta.env.VITE_API_BASE as string | undefined ?? "http://127.0.0.1:8787";
+
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 500;
+
+async function fetchWithRetry(url: string, options?: RequestInit): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (err) {
+      lastError = err;
+      if (attempt < MAX_RETRIES - 1) {
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Network request failed");
+}
 
 export async function startAnalysis(repoPath: string): Promise<{ analysisId: string }> {
   const response = await fetch(`${API_BASE}/api/analyze`, {
@@ -19,7 +39,7 @@ export async function startAnalysis(repoPath: string): Promise<{ analysisId: str
 }
 
 export async function getStatus(analysisId: string): Promise<StatusResponse> {
-  const response = await fetch(`${API_BASE}/api/analyze/${analysisId}/status`);
+  const response = await fetchWithRetry(`${API_BASE}/api/analyze/${analysisId}/status`);
   if (!response.ok) {
     throw new Error(await readError(response));
   }
@@ -28,7 +48,7 @@ export async function getStatus(analysisId: string): Promise<StatusResponse> {
 }
 
 export async function getResults(analysisId: string): Promise<AnalysisResult> {
-  const response = await fetch(`${API_BASE}/api/analyze/${analysisId}/results`);
+  const response = await fetchWithRetry(`${API_BASE}/api/analyze/${analysisId}/results`);
   if (!response.ok) {
     throw new Error(await readError(response));
   }
@@ -37,7 +57,7 @@ export async function getResults(analysisId: string): Promise<AnalysisResult> {
 }
 
 export async function getHistory(): Promise<AnalysisHistoryItem[]> {
-  const response = await fetch(`${API_BASE}/api/analyses`);
+  const response = await fetchWithRetry(`${API_BASE}/api/analyses`);
   if (!response.ok) {
     throw new Error(await readError(response));
   }
@@ -52,4 +72,3 @@ async function readError(response: Response): Promise<string> {
     return `Request failed with status ${response.status}`;
   }
 }
-
