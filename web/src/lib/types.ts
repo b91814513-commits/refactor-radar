@@ -113,3 +113,16 @@ export interface AnalysisHistoryItem {
   highPriorityCount: number;
 }
 
+export interface AnalysisConfigInput {
+  lineThreshold?: number;
+  functionThreshold?: number;
+  fanInThreshold?: number;
+  fanOutThreshold?: number;
+  longParameterListThreshold?: number;
+  deepNestingThreshold?: number;
+  godFunctionThreshold?: number;
+  duplicationSimilarityThreshold?: number;
+  excludePatterns?: string[];
+  enabledRules?: string[];
+}
+

@@ -17,7 +17,7 @@ RUN mkdir -p crates/server/src && echo "fn main() {}" > crates/server/src/main.r
 RUN cargo build --release --package server || true
 # Copy real source and rebuild
 COPY crates/server/src/main.rs crates/server/src/main.rs
-COPY crates/analyzer/src/lib.rs crates/analyzer/src/lib.rs
+COPY crates/analyzer/src/ crates/analyzer/src/
 RUN cargo build --release --package server
 
 # Stage 3: Final minimal image

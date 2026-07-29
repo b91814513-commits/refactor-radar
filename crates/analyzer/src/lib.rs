@@ -1,3 +1,7 @@
+#![allow(clippy::cast_precision_loss)]
+
+pub mod sarif;
+
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -38,7 +42,7 @@ fn export_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(
-            r#"(?m)^\s*export\s+(?:async\s+)?(?:function|const|let|var|class|type)\s+([A-Za-z_][A-Za-z0-9_]*)"#,
+            r"(?m)^\s*export\s+(?:async\s+)?(?:function|const|let|var|class|type)\s+([A-Za-z_][A-Za-z0-9_]*)",
         )
         .expect("valid export regex")
     })
@@ -48,7 +52,7 @@ fn function_decl_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(
-            r#"(?m)(?:export\s+)?(?:async\s+)?function\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s*\{"#,
+            r"(?m)(?:export\s+)?(?:async\s+)?function\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s*\{",
         )
         .expect("valid function regex")
     })
@@ -58,7 +62,7 @@ fn arrow_decl_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(
-            r#"(?m)(?:export\s+)?(?:const|let|var)\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*(?:async\s*)?\([^)]*\)\s*=>\s*\{"#,
+            r"(?m)(?:export\s+)?(?:const|let|var)\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*(?:async\s*)?\([^)]*\)\s*=>\s*\{",
         )
         .expect("valid arrow regex")
     })
@@ -66,25 +70,25 @@ fn arrow_decl_re() -> &'static Regex {
 
 fn string_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r#"["'][^"']*["']"#).expect("valid string regex"))
+    RE.get_or_init(|| Regex::new("[\"'][^\"']*[\"']").expect("valid string regex"))
 }
 
 fn number_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r#"\b\d+\b"#).expect("valid number regex"))
+    RE.get_or_init(|| Regex::new(r"\b\d+\b").expect("valid number regex"))
 }
 
 fn comment_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r#"(?s://[^\n]*|/\*.*?\*/)"#).expect("valid comment regex")
+        Regex::new(r"(?s://[^\n]*|/\*.*?\*/)").expect("valid comment regex")
     })
 }
 
 fn token_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r#"[A-Za-z_][A-Za-z0-9_]*|[0-9]+(?:\.[0-9]+)?|[{}()\[\];,.]|(?:=>)|[+\-*/%=<>!&|^~?:]+"#)
+        Regex::new(r"[A-Za-z_][A-Za-z0-9_]*|[0-9]+(?:\.[0-9]+)?|[{}()\[\];,.]|(?:=>)|[+\-*/%=<>!&|^~?:]+")
             .expect("valid token regex")
     })
 }
@@ -269,6 +273,11 @@ impl Default for AnalyzerConfig {
     }
 }
 
+/// Load analyzer configuration from a TOML file.
+///
+/// # Errors
+///
+/// Returns an error if the config file cannot be read or contains invalid TOML.
 pub fn load_config(path: &Path) -> Result<AnalyzerConfig> {
     let content = fs::read_to_string(path)
         .with_context(|| format!("failed to read config file {}", path.display()))?;
@@ -287,18 +296,30 @@ pub struct Analyzer {
 
 
 impl Analyzer {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use]
     pub fn with_config(config: AnalyzerConfig) -> Self {
         Self { config }
     }
 
+    /// Analyze a repository and return a structured analysis result.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the repository path is invalid or analysis fails.
     pub fn analyze_repo<P: AsRef<Path>>(&self, repo_path: P) -> Result<AnalysisResult> {
         self.analyze_repo_with_progress(repo_path, |_| {})
     }
 
+    /// Analyze a repository with progress reporting.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the repository path is invalid or analysis fails.
     pub fn analyze_repo_with_progress<P, F>(
         &self,
         repo_path: P,
@@ -402,6 +423,7 @@ impl Analyzer {
         })
     }
 
+    #[allow(clippy::unused_self)]
     fn parse_file(
         &self,
         root: &Path,
@@ -616,8 +638,7 @@ fn validate_repo(root: &Path) -> Result<()> {
     let has_repo_markers = root.join("package.json").exists()
         || root.join("tsconfig.json").exists()
         || collect_source_files(root, &[])
-            .map(|files| !files.is_empty())
-            .unwrap_or(false);
+            .is_ok_and(|files| !files.is_empty());
 
     if !has_repo_markers {
         return Err(anyhow!(
@@ -692,8 +713,7 @@ fn is_excluded(root: &Path, file_path: &Path, patterns: &[String]) -> bool {
     patterns.iter().any(|pattern| {
         let regex_str = glob_to_regex(pattern);
         Regex::new(&regex_str)
-            .map(|re| re.is_match(&relative))
-            .unwrap_or(false)
+            .is_ok_and(|re| re.is_match(&relative))
     })
 }
 
@@ -758,8 +778,7 @@ fn apply_graph_metrics(models: &mut [SourceFileModel], graph: &BTreeMap<String, 
     for model in models {
         model.analyzed.metrics.fan_out = graph
             .get(&model.analyzed.path)
-            .map(|imports| imports.len())
-            .unwrap_or(0);
+            .map_or(0, Vec::len);
         model.analyzed.metrics.fan_in = fan_in.get(&model.analyzed.path).copied().unwrap_or(0);
     }
 }
@@ -936,6 +955,7 @@ fn god_function_issues(
 
 // ---- Improved duplication detection (Jaccard) --------------------------------
 
+#[allow(clippy::too_many_lines)]
 fn duplication_candidate_issues(
     models: &[SourceFileModel],
     similarity_threshold: f64,
@@ -1008,7 +1028,9 @@ fn duplication_candidate_issues(
                 .collect();
             let min_start = group.iter().map(|&i| all_funcs[i].1).min().unwrap_or(1);
             let max_end = group.iter().map(|&i| all_funcs[i].2).max().unwrap_or(1);
-            let avg_sim = if !flagged_pairs.is_empty() {
+            let avg_sim = if flagged_pairs.is_empty() {
+                0.0
+            } else {
                 let relevant: Vec<f64> = flagged_pairs
                     .iter()
                     .filter(|(i, j, _)| group.contains(i) || group.contains(j))
@@ -1019,8 +1041,6 @@ fn duplication_candidate_issues(
                 } else {
                     relevant.iter().sum::<f64>() / relevant.len() as f64
                 }
-            } else {
-                0.0
             };
 
             AnalysisIssue {
@@ -1045,7 +1065,7 @@ fn duplication_candidate_issues(
                 },
                 evidence: vec![EvidenceItem {
                     label: "avg_jaccard_similarity".into(),
-                    detail: format!("{:.3}", avg_sim),
+                    detail: format!("{avg_sim:.3}"),
                 }],
                 suggested_actions: vec![
                     SuggestedAction {
@@ -1172,12 +1192,11 @@ fn improve_scoring(issues: &mut [AnalysisIssue], models: &[SourceFileModel]) {
             .files
             .first()
             .and_then(|path| file_metrics.get(path))
-            .map(|metrics| {
+            .map_or(0.0, |metrics| {
                 let size_factor = (metrics.line_count as f64 / 100.0).min(2.0);
                 let dep_factor = (metrics.fan_in + metrics.fan_out) as f64 * 0.3;
                 size_factor + dep_factor
-            })
-            .unwrap_or(0.0);
+            });
 
         let density_factor = issue_density.min(3.0);
 
@@ -1431,7 +1450,7 @@ fn relative_file_path(root: &Path, file_path: &Path) -> String {
 
 fn normalize_path(path: &Path) -> String {
     let mut normalized = Vec::<std::ffi::OsString>::new();
-    for component in path.iter() {
+    for component in path {
         match component.to_str() {
             Some(".") => {}
             Some("..") => {

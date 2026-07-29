@@ -1,4 +1,4 @@
-import { Boxes, CopyCheck, Network, RefreshCcw, ScanSearch, type LucideIcon } from "lucide-react";
+import { Boxes, CopyCheck, Layers, ListOrdered, Network, RefreshCcw, ScanSearch, Zap, type LucideIcon } from "lucide-react";
 
 import { useLocale, type TranslationKey } from "../../lib/i18n";
 
@@ -7,6 +7,9 @@ const FEATURES: { icon: LucideIcon; key: TranslationKey }[] = [
   { icon: Network, key: "empty.featureHotspot" },
   { icon: RefreshCcw, key: "empty.featureCycle" },
   { icon: CopyCheck, key: "empty.featureDuplication" },
+  { icon: ListOrdered, key: "empty.featureLongParameterList" },
+  { icon: Layers, key: "empty.featureDeepNesting" },
+  { icon: Zap, key: "empty.featureGodFunction" },
 ];
 
 export function EmptyState() {

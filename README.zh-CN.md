@@ -29,6 +29,11 @@ Lint 工具会告诉你违反了哪些规则。Refactor Radar 回答更难的规
 - **优先级评分** — 每个问题都有评分，让你始终知道该先修什么
 - **交互式仪表板** — 问题分布、严重度分布、文件指标和优先级排行图表
 - **依赖关系图** — 力导向 SVG 图形，支持拖拽、缩放、平移和循环高亮
+- **CLI 模式** — 通过命令行运行 `refactor-radar <path>` 进行分析，无需启动服务
+- **SARIF 2.1.0 输出** — 导出 SARIF 格式，支持 GitHub Code Scanning 和 CI/CD 集成
+- **配置直通** — `.refactor-radar.toml` 项目配置 + API 请求覆盖 + 设置界面，一路传递到分析器
+- **语义化退出码** — CI 友好的退出码，用于质量门禁
+- **服务连接检测** — 前端自动检测 API 服务是否可用
 - **配置支持** — 通过 `.refactor-radar.toml` 自定义阈值和启用的规则
 - **深色模式** — 系统感知主题，支持手动切换，偏好设置持久化保存
 - **双语界面** — 中文 / 英文切换，偏好设置持久化保存
@@ -64,6 +69,8 @@ npm run dev
 
 ### 使用方法
 
+#### Web 仪表板
+
 1. 在输入框中粘贴本地 JS/TS 项目路径
 2. 点击 **开始分析**
 3. 浏览仪表板：
@@ -72,6 +79,27 @@ npm run dev
    - **优先级** — 最高优先级问题的水平柱状图
    - **依赖图** — 交互式力导向图，循环依赖红色高亮
 4. 点击列表中的任意问题，查看证据和建议的重构方向
+
+#### CLI 模式（无需启动服务）
+
+```bash
+# 基础分析
+refactor-radar ./my-project
+
+# 使用自定义配置文件
+refactor-radar ./my-project --config .refactor-radar.toml
+
+# 输出 SARIF 格式，用于 CI/CD 集成
+refactor-radar ./my-project --format sarif > results.sarif
+
+# 输出 JSON 格式
+refactor-radar ./my-project --format json > results.json
+
+# 人类可读的摘要
+refactor-radar ./my-project --format summary
+```
+
+退出码：`0` = 无问题，`1` = 发现问题，`2` = 错误。
 
 ## 效果截图
 
@@ -88,18 +116,21 @@ npm run dev
 
 ## 项目架构
 
-Refactor Radar 采用三层架构：
+Refactor Radar 采用三层架构，同时支持 Web 和 CLI 两种使用方式：
 
 ```mermaid
 graph TB
     A[React SPA :4173] -->|fetch / JSON| B[Axum API 服务 :8787]
     B --> C[Analyzer Crate 库]
     B --> D[.refactor-radar/analyses/*.json]
+    E[refactor-radar CLI] --> C
+    E --> F[SARIF / JSON / Summary]
 ```
 
 | 层级 | 技术 |
 |------|------|
 | 分析引擎 | Rust - 基于正则的解析、BTreeMap 依赖图、Tarjan SCC 循环检测、Jaccard 重复检测 |
+| CLI | Clap + SARIF 2.1.0 序列化器 |
 | HTTP 服务 | Axum 0.7 + Tokio 异步运行时 + tower-http CORS + tracing + clap |
 | 前端 | React 18 + TypeScript + Vite + React Router |
 | 图表 | Recharts（饼图、柱状图、水平柱状图） |
@@ -107,7 +138,11 @@ graph TB
 
 ## 配置
 
-在项目根目录创建 `.refactor-radar.toml` 文件来自定义分析行为：
+Refactor Radar 支持三个层级的配置，均使用相同的 TOML 格式：
+
+### 1. 项目级配置（推荐）
+
+在项目根目录创建 `.refactor-radar.toml` 文件。CLI 和 API 服务都会自动加载此配置：
 
 ```toml
 # 阈值配置
@@ -139,12 +174,54 @@ excludePatterns = [
 ]
 ```
 
+### 2. API 请求覆盖
+
+在 `/api/analyze` 请求体中传递 `config` 字段，运行时覆盖项目配置：
+
+```json
+{
+  "repoPath": "./my-project",
+  "config": {
+    "lineThreshold": 60,
+    "enabledRules": ["large_module", "circular_dependency"]
+  }
+}
+```
+
+### 3. 设置界面
+
+Web 仪表板的设置页面可让你交互式调整阈值。设置值会作为请求覆盖发送到 API。
+
+## CI/CD 集成
+
+### GitHub Actions + SARIF
+
+```yaml
+- name: Run Refactor Radar
+  run: |
+    cargo install --path .
+    refactor-radar . --format sarif > results.sarif
+
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: results.sarif
+```
+
+### 使用退出码实现质量门禁
+
+```bash
+# 发现任何问题则 CI 失败
+refactor-radar . --format summary
+# 退出码 0 = 无问题，1 = 发现问题，2 = 错误
+```
+
 ## API 参考
 
 | 端点 | 方法 | 描述 |
 |------|------|------|
 | `/health` | GET | 健康检查 — 返回 `{ "status": "ok", "version": "..." }` |
-| `/api/analyze` | POST | 启动分析。请求体：`{ "repoPath": "..." }` |
+| `/api/analyze` | POST | 启动分析。请求体：`{ "repoPath": "...", "config": { ... } }` |
 | `/api/analyze/:id/status` | GET | 轮询分析进度（阶段、完成状态、错误） |
 | `/api/analyze/:id/results` | GET | 获取完整分析结果（文件 + 问题列表） |
 | `/api/analyze/:id/issues/:issue_id` | GET | 获取单个问题的详细信息和证据 |
@@ -201,9 +278,10 @@ docker run -p 8787:8787 refactor-radar
 
 ## 路线图
 
+- [x] CLI 模式 + SARIF 输出，支持 CI/CD 集成
+- [x] 配置从 UI/API 直通到分析器
 - [ ] 支持更多编程语言（Python、Go、Java）
 - [ ] 基于 AST 的语义级重复检测（tree-sitter）
-- [ ] CI 集成 — 将分析结果作为 PR 评论发布
 - [ ] 编辑器集成（VS Code 扩展）
 - [ ] PR 和 diff 分析模式
 - [ ] 可选的 AI 解释层，用于复杂发现

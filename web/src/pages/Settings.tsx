@@ -7,11 +7,17 @@ interface AnalysisConfig {
   functionCount: number;
   fanIn: number;
   fanOut: number;
+  longParameterList: number;
+  deepNesting: number;
+  godFunction: number;
   rules: {
     largeModule: boolean;
     dependencyHotspot: boolean;
     circularDependency: boolean;
     duplicationCandidate: boolean;
+    longParameterList: boolean;
+    deepNesting: boolean;
+    godFunction: boolean;
   };
 }
 
@@ -20,11 +26,17 @@ const DEFAULTS: AnalysisConfig = {
   functionCount: 5,
   fanIn: 2,
   fanOut: 4,
+  longParameterList: 4,
+  deepNesting: 4,
+  godFunction: 10,
   rules: {
     largeModule: true,
     dependencyHotspot: true,
     circularDependency: true,
     duplicationCandidate: true,
+    longParameterList: true,
+    deepNesting: true,
+    godFunction: true,
   },
 };
 
@@ -66,7 +78,7 @@ export function Settings() {
     setSaved(true);
   }, []);
 
-  function updateThreshold(key: keyof Pick<AnalysisConfig, "lineCount" | "functionCount" | "fanIn" | "fanOut">, value: number) {
+  function updateThreshold(key: keyof Pick<AnalysisConfig, "lineCount" | "functionCount" | "fanIn" | "fanOut" | "longParameterList" | "deepNesting" | "godFunction">, value: number) {
     setConfig((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -143,6 +155,48 @@ export function Settings() {
             <output>{config.fanOut}</output>
           </label>
         </div>
+
+        <div className="settings-field">
+          <label>
+            <span>{t("settings.longParameterList")}</span>
+            <input
+              type="range"
+              min={1}
+              max={10}
+              value={config.longParameterList}
+              onChange={(e) => updateThreshold("longParameterList", Number(e.target.value))}
+            />
+            <output>{config.longParameterList}</output>
+          </label>
+        </div>
+
+        <div className="settings-field">
+          <label>
+            <span>{t("settings.deepNesting")}</span>
+            <input
+              type="range"
+              min={1}
+              max={10}
+              value={config.deepNesting}
+              onChange={(e) => updateThreshold("deepNesting", Number(e.target.value))}
+            />
+            <output>{config.deepNesting}</output>
+          </label>
+        </div>
+
+        <div className="settings-field">
+          <label>
+            <span>{t("settings.godFunction")}</span>
+            <input
+              type="range"
+              min={1}
+              max={30}
+              value={config.godFunction}
+              onChange={(e) => updateThreshold("godFunction", Number(e.target.value))}
+            />
+            <output>{config.godFunction}</output>
+          </label>
+        </div>
       </div>
 
       <div className="settings-section">
@@ -189,6 +243,39 @@ export function Settings() {
               onChange={() => toggleRule("duplicationCandidate")}
             />
             <span>{t("settings.ruleDuplicationCandidate")}</span>
+          </label>
+        </div>
+
+        <div className="settings-toggle">
+          <label>
+            <input
+              type="checkbox"
+              checked={config.rules.longParameterList}
+              onChange={() => toggleRule("longParameterList")}
+            />
+            <span>{t("settings.ruleLongParameterList")}</span>
+          </label>
+        </div>
+
+        <div className="settings-toggle">
+          <label>
+            <input
+              type="checkbox"
+              checked={config.rules.deepNesting}
+              onChange={() => toggleRule("deepNesting")}
+            />
+            <span>{t("settings.ruleDeepNesting")}</span>
+          </label>
+        </div>
+
+        <div className="settings-toggle">
+          <label>
+            <input
+              type="checkbox"
+              checked={config.rules.godFunction}
+              onChange={() => toggleRule("godFunction")}
+            />
+            <span>{t("settings.ruleGodFunction")}</span>
           </label>
         </div>
       </div>

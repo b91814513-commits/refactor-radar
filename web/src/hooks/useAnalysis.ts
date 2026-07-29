@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getResults, getStatus, startAnalysis } from "../lib/api";
 import type { TranslationKey } from "../lib/i18n";
-import type { AnalysisIssue, AnalysisPhase, AnalysisResult, IssueType } from "../lib/types";
+import type { AnalysisConfigInput, AnalysisIssue, AnalysisPhase, AnalysisResult, IssueType } from "../lib/types";
+import { getStoredSettings } from "../pages/Settings";
 
 const RECENT_KEY = "refactor-radar-recent";
 
@@ -105,7 +106,26 @@ export function useAnalysis({ t, onToast }: UseAnalysisOptions) {
     setSelectedIssueId(null);
     setPhase("discovery");
     try {
-      const response = await startAnalysis(repoPath.trim());
+      const stored = getStoredSettings();
+      const config: AnalysisConfigInput = {
+        lineThreshold: stored.lineCount,
+        functionThreshold: stored.functionCount,
+        fanInThreshold: stored.fanIn,
+        fanOutThreshold: stored.fanOut,
+        longParameterListThreshold: stored.longParameterList,
+        deepNestingThreshold: stored.deepNesting,
+        godFunctionThreshold: stored.godFunction,
+        enabledRules: [
+          ...(stored.rules.largeModule ? ["large_module"] : []),
+          ...(stored.rules.dependencyHotspot ? ["dependency_hotspot"] : []),
+          ...(stored.rules.circularDependency ? ["circular_dependency"] : []),
+          ...(stored.rules.duplicationCandidate ? ["duplication_candidate"] : []),
+          ...(stored.rules.longParameterList ? ["long_parameter_list"] : []),
+          ...(stored.rules.deepNesting ? ["deep_nesting"] : []),
+          ...(stored.rules.godFunction ? ["god_function"] : []),
+        ],
+      };
+      const response = await startAnalysis(repoPath.trim(), config);
       setAnalysisId(response.analysisId);
       setRecentRepos((current) => {
         const next = [repoPath.trim(), ...current.filter((v) => v !== repoPath.trim())].slice(0, 5);

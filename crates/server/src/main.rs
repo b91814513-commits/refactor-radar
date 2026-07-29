@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 use std::fs;
 use std::net::SocketAddr;
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use analyzer::{AnalysisIssue, AnalysisPhase, AnalysisResult, Analyzer};
+use analyzer::{AnalysisIssue, AnalysisPhase, AnalysisResult, Analyzer, AnalyzerConfig};
 use anyhow::{anyhow, Context, Result};
 use axum::extract::{Path as AxumPath, State};
 use axum::http::StatusCode;
@@ -53,8 +54,8 @@ struct Cli {
 /// long queueing requests wait rather than oversubscribing the machine.
 fn analysis_concurrency() -> usize {
     std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(4)
+        .ok()
+        .map_or(4, NonZeroUsize::get)
 }
 
 #[derive(Clone)]
@@ -84,8 +85,24 @@ struct AnalysisJob {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct AnalyzerConfigInput {
+    line_threshold: Option<usize>,
+    function_threshold: Option<usize>,
+    fan_in_threshold: Option<usize>,
+    fan_out_threshold: Option<usize>,
+    long_parameter_list_threshold: Option<usize>,
+    deep_nesting_threshold: Option<usize>,
+    god_function_threshold: Option<usize>,
+    duplication_similarity_threshold: Option<f64>,
+    exclude_patterns: Option<Vec<String>>,
+    enabled_rules: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct AnalyzeRequest {
     repo_path: String,
+    config: Option<AnalyzerConfigInput>,
 }
 
 #[derive(Debug, Serialize)]
@@ -164,7 +181,12 @@ impl IntoResponse for AppError {
             "error": self.message(),
             "code": self.error_code(),
         });
-        error!(error_code = self.error_code(), status = status.as_u16(), message = self.message(), "request failed");
+        error!(
+            error_code = self.error_code(),
+            status = status.as_u16(),
+            message = self.message(),
+            "request failed"
+        );
         (status, Json(body)).into_response()
     }
 }
@@ -222,7 +244,7 @@ async fn main() -> Result<()> {
 
     let address: SocketAddr = format!("{}:{}", cli.host, cli.port)
         .parse()
-        .map_err(|e| anyhow!("invalid bind address: {e}"))?;
+        .context("invalid bind address")?;
     let listener = tokio::net::TcpListener::bind(address).await?;
     info!(%address, "Refactor Radar server listening");
 
@@ -242,17 +264,10 @@ async fn main() -> Result<()> {
 
 /// Waits for Ctrl+C, then gives in-flight analyses up to 30 s to complete.
 async fn shutdown_signal(active_count: Arc<std::sync::atomic::AtomicUsize>) {
-    let ctrl_c = async {
-        if let Err(e) = tokio::signal::ctrl_c().await {
-            error!(error = %e, "failed to listen for Ctrl+C");
-        }
-    };
-
-    tokio::select! {
-        _ = ctrl_c => {
-            info!("received Ctrl+C — initiating graceful shutdown");
-        }
+    if let Err(e) = tokio::signal::ctrl_c().await {
+        error!(error = %e, "failed to listen for Ctrl+C");
     }
+    info!("received Ctrl+C — initiating graceful shutdown");
 
     // Wait for all active analyses to drain (up to 30 s).
     let drain = async {
@@ -264,14 +279,13 @@ async fn shutdown_signal(active_count: Arc<std::sync::atomic::AtomicUsize>) {
         }
     };
 
-    let timeout = tokio::time::sleep(std::time::Duration::from_secs(30));
-    tokio::select! {
-        _ = drain => {
-            info!("all in-flight analyses completed");
-        }
-        _ = timeout => {
-            warn!("shutdown timeout reached — some analyses may not have finished");
-        }
+    if tokio::time::timeout(std::time::Duration::from_secs(30), drain)
+        .await
+        .is_ok()
+    {
+        info!("all in-flight analyses completed");
+    } else {
+        warn!("shutdown timeout reached — some analyses may not have finished");
     }
 }
 
@@ -309,6 +323,8 @@ async fn start_analysis(
         )));
     }
     let repo_path_str = canonical.to_string_lossy().replace('\\', "/");
+
+    let config = resolve_config(&canonical, request.config);
 
     debug!(repo_path = %repo_path_str, "starting analysis");
 
@@ -349,7 +365,7 @@ async fn start_analysis(
         state_for_task.active_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
         if let Err(error) =
-            run_analysis_job(state_for_task.clone(), &analysis_id_for_task, &repo_path_str, permit).await
+            run_analysis_job(state_for_task.clone(), &analysis_id_for_task, &repo_path_str, config, permit).await
         {
             error!(analysis_id = %analysis_id_for_task, error = %error, "analysis failed");
             let _ = update_job(&state_for_error, &analysis_id_for_task, |job| {
@@ -368,10 +384,37 @@ async fn start_analysis(
     }))
 }
 
+fn resolve_config(repo_path: &Path, api_config: Option<AnalyzerConfigInput>) -> AnalyzerConfig {
+    let mut config = AnalyzerConfig::default();
+
+    let config_path = repo_path.join(".refactor-radar.toml");
+    if config_path.exists() {
+        if let Ok(file_config) = analyzer::load_config(&config_path) {
+            config = file_config;
+        }
+    }
+
+    if let Some(api) = api_config {
+        if let Some(v) = api.line_threshold { config.line_threshold = v; }
+        if let Some(v) = api.function_threshold { config.function_threshold = v; }
+        if let Some(v) = api.fan_in_threshold { config.fan_in_threshold = v; }
+        if let Some(v) = api.fan_out_threshold { config.fan_out_threshold = v; }
+        if let Some(v) = api.long_parameter_list_threshold { config.long_parameter_list_threshold = v; }
+        if let Some(v) = api.deep_nesting_threshold { config.deep_nesting_threshold = v; }
+        if let Some(v) = api.god_function_threshold { config.god_function_threshold = v; }
+        if let Some(v) = api.duplication_similarity_threshold { config.duplication_similarity_threshold = v; }
+        if let Some(v) = api.exclude_patterns { config.exclude_patterns = v; }
+        if let Some(v) = api.enabled_rules { config.enabled_rules = v; }
+    }
+
+    config
+}
+
 async fn run_analysis_job(
     state: AppState,
     analysis_id: &str,
     repo_path: &str,
+    config: AnalyzerConfig,
     permit: tokio::sync::OwnedSemaphorePermit,
 ) -> Result<()> {
     let analysis_id_owned = analysis_id.to_string();
@@ -382,7 +425,7 @@ async fn run_analysis_job(
     // entire duration of the analysis and released when the closure returns.
     let result = tokio::task::spawn_blocking(move || {
         let _permit = permit; // held until closure ends
-        let analyzer = Analyzer::default();
+        let analyzer = Analyzer::with_config(config);
         analyzer.analyze_repo_with_progress(&repo_path_owned, |phase| {
             let _ = update_job(&state_for_progress, &analysis_id_owned, |job| {
                 job.phase = phase;
@@ -390,7 +433,7 @@ async fn run_analysis_job(
         })
     })
     .await
-    .map_err(|join_error| anyhow!("analysis worker failed: {join_error}"))?;
+    .context("analysis worker failed")?;
 
     let mut result = result?;
 
@@ -426,20 +469,17 @@ async fn get_results(
     AxumPath(analysis_id): AxumPath<String>,
 ) -> std::result::Result<Json<AnalysisResult>, AppError> {
     // Try in-memory job first; fall back to persisted file for post-restart access.
-    let job = match get_job(&state, &analysis_id) {
-        Ok(job) => job,
-        Err(_) => {
-            let file_path = state.result_root.join(format!("{analysis_id}.json"));
-            if !file_path.exists() {
-                return Err(AppError::not_found("analysis not found"));
-            }
-            let result = tokio::task::spawn_blocking(move || read_result(&file_path))
-                .await
-                .map_err(|join_error| {
-                    AppError::internal(format!("result read task failed: {join_error}"))
-                })??;
-            return Ok(Json(result));
+    let Ok(job) = get_job(&state, &analysis_id) else {
+        let file_path = state.result_root.join(format!("{analysis_id}.json"));
+        if !file_path.exists() {
+            return Err(AppError::not_found("analysis not found"));
         }
+        let result = tokio::task::spawn_blocking(move || read_result(&file_path))
+            .await
+            .map_err(|join_error| {
+                AppError::internal(format!("result read task failed: {join_error}"))
+            })??;
+        return Ok(Json(result));
     };
 
     if !job.done {
@@ -529,12 +569,12 @@ fn list_analyses_blocking(result_root: &Path) -> Vec<serde_json::Value> {
     };
 
     let mut items: Vec<serde_json::Value> = entries
-        .filter_map(|entry| entry.ok())
+        .filter_map(Result::ok)
         .filter(|entry| entry.path().extension().and_then(|ext| ext.to_str()) == Some("json"))
         .filter_map(|entry| {
             let bytes = fs::read(entry.path()).ok()?;
             let result: AnalysisResult = serde_json::from_slice(&bytes).ok()?;
-            let id = entry.path().file_stem()?.to_string_lossy().to_string();
+            let id = entry.path().file_stem()?.to_string_lossy().into_owned();
             Some(serde_json::json!({
                 "id": id,
                 "repoPath": result.repo_path,
@@ -556,13 +596,12 @@ fn list_analyses_blocking(result_root: &Path) -> Vec<serde_json::Value> {
 }
 
 fn cleanup_old_results(result_root: &Path, max_files: usize) {
-    let entries = match fs::read_dir(result_root) {
-        Ok(entries) => entries,
-        Err(_) => return,
+    let Ok(entries) = fs::read_dir(result_root) else {
+        return;
     };
 
     let mut files: Vec<_> = entries
-        .filter_map(|entry| entry.ok())
+        .filter_map(Result::ok)
         .filter(|entry| entry.path().extension().and_then(|ext| ext.to_str()) == Some("json"))
         .collect();
 

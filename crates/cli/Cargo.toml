@@ -1,0 +1,18 @@
+[package]
+name = "cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "refactor-radar"
+path = "src/main.rs"
+
+[dependencies]
+analyzer = { path = "../analyzer" }
+clap = { version = "4", features = ["derive"] }
+serde_json.workspace = true
+anyhow.workspace = true
+
+[lints]
+workspace = true

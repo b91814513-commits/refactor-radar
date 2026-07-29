@@ -1,6 +1,6 @@
-import type { AnalysisHistoryItem, AnalysisResult, StatusResponse } from "./types";
+import type { AnalysisConfigInput, AnalysisHistoryItem, AnalysisResult, StatusResponse } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_BASE as string | undefined ?? "http://127.0.0.1:8787";
+export const API_BASE = import.meta.env.VITE_API_BASE as string | undefined ?? "http://127.0.0.1:8787";
 
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 500;
@@ -22,13 +22,14 @@ async function fetchWithRetry(url: string, options?: RequestInit): Promise<Respo
   throw lastError instanceof Error ? lastError : new Error("Network request failed");
 }
 
-export async function startAnalysis(repoPath: string): Promise<{ analysisId: string }> {
+export async function startAnalysis(repoPath: string, config?: AnalysisConfigInput): Promise<{ analysisId: string }> {
+  const body = { repoPath, ...(config && { config }) };
   const response = await fetch(`${API_BASE}/api/analyze`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ repoPath })
+    body: JSON.stringify(body)
   });
 
   if (!response.ok) {

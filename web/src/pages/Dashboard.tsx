@@ -1,5 +1,5 @@
 import { ArrowRight, Boxes, CircleAlert, FileCode2, Flame, FolderSearch, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { AnalysisHistory } from "../components/layout/AnalysisHistory";
 import { AnalysisProgress } from "../components/layout/AnalysisProgress";
@@ -7,6 +7,7 @@ import { EmptyState } from "../components/layout/EmptyState";
 import { ExportMenu } from "../components/layout/ExportMenu";
 import { VisualizationTabs, type VizTab } from "../components/layout/VisualizationTabs";
 import { useAnalysis } from "../hooks/useAnalysis";
+import { API_BASE } from "../lib/api";
 import { useLocale, type TranslationKey } from "../lib/i18n";
 import type { AnalysisIssue } from "../lib/types";
 
@@ -25,6 +26,21 @@ export function Dashboard() {
   const { t } = useLocale();
   const [activeVizTab, setActiveVizTab] = useState<VizTab>("overview");
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [serverError, setServerError] = useState(false);
+
+  const checkHealth = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/health`);
+      if (!res.ok) throw new Error("unhealthy");
+      setServerError(false);
+    } catch {
+      setServerError(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    void checkHealth();
+  }, [checkHealth]);
 
   const analysis = useAnalysis({
     t,
@@ -51,6 +67,15 @@ export function Dashboard() {
 
   return (
     <>
+      {serverError && (
+        <div className="error-banner" role="alert">
+          <strong>{t("error.serverConnection")}</strong>
+          <p>{t("error.serverConnectionDetail")}</p>
+          <button className="btn-primary" onClick={() => void checkHealth()}>
+            {t("toast.retry")}
+          </button>
+        </div>
+      )}
       <section className="scan-panel" aria-labelledby="scan-title">
         <div className="scan-grid">
           <div className="scan-primary">

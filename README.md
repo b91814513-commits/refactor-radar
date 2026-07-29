@@ -29,6 +29,11 @@ It scans a local JS/TS repository, maps its dependency structure, detects 7 type
 - **Priority Scoring** — Every issue gets a score so you always know what to fix first
 - **Interactive Dashboard** — Issue distribution, severity breakdown, file metrics, and priority ranking charts
 - **Dependency Graph** — Force-directed SVG graph with drag, zoom, pan, and cycle highlighting
+- **CLI Mode** — Run analysis from the command line with `refactor-radar <path>`, no server needed
+- **SARIF 2.1.0 Output** — Export results as SARIF for GitHub Code Scanning and CI/CD integration
+- **Config Passthrough** — `.refactor-radar.toml` project config + API request overrides + Settings UI, all the way to the analyzer
+- **Semantic Exit Codes** — CI-friendly exit codes for quality gate enforcement
+- **Server Connection Detection** — Frontend automatically detects whether the API server is available
 - **Configuration Support** — Customize thresholds and enabled rules via `.refactor-radar.toml`
 - **Dark Mode** — System-aware theme with manual toggle, persisted preference
 - **Bilingual UI** — Chinese / English toggle with persistent preference
@@ -64,6 +69,8 @@ Dashboard opens on `http://127.0.0.1:4173`.
 
 ### Usage
 
+#### Web Dashboard
+
 1. Paste a local JS/TS project path into the input field
 2. Click **Analyze Repository**
 3. Explore the dashboard:
@@ -72,6 +79,27 @@ Dashboard opens on `http://127.0.0.1:4173`.
    - **Priority** — Ranked bar chart of highest-priority issues
    - **Dependency Graph** — Interactive force-directed graph with cycle highlighting
 4. Click any issue in the list to see evidence and suggested refactor actions
+
+#### CLI Mode (no server needed)
+
+```bash
+# Basic analysis
+refactor-radar ./my-project
+
+# Use a custom config file
+refactor-radar ./my-project --config .refactor-radar.toml
+
+# Output as SARIF for CI/CD integration
+refactor-radar ./my-project --format sarif > results.sarif
+
+# Output as JSON
+refactor-radar ./my-project --format json > results.json
+
+# Human-readable summary
+refactor-radar ./my-project --format summary
+```
+
+Exit codes: `0` = no issues, `1` = issues found, `2` = error.
 
 ## Screenshots
 
@@ -88,18 +116,21 @@ Dashboard opens on `http://127.0.0.1:4173`.
 
 ## Architecture
 
-Refactor Radar uses a three-tier architecture:
+Refactor Radar uses a three-tier architecture with both web and CLI interfaces:
 
 ```mermaid
 graph TB
     A[React SPA :4173] -->|fetch / JSON| B[Axum API Server :8787]
     B --> C[Analyzer Crate lib]
     B --> D[.refactor-radar/analyses/*.json]
+    E[refactor-radar CLI] --> C
+    E --> F[SARIF / JSON / Summary]
 ```
 
 | Layer | Technology |
 |-------|-----------|
 | Analysis engine | Rust — regex-based parsing, BTreeMap dependency graph, Tarjan SCC cycle detection, Jaccard duplication |
+| CLI | Clap + SARIF 2.1.0 serializer |
 | HTTP server | Axum 0.7 + Tokio async runtime + tower-http CORS + tracing + clap |
 | Frontend | React 18 + TypeScript + Vite + React Router |
 | Charts | Recharts (pie, bar, horizontal bar) |
@@ -107,7 +138,11 @@ graph TB
 
 ## Configuration
 
-Create a `.refactor-radar.toml` file in your project root to customize analysis behavior:
+Refactor Radar supports three levels of configuration, all using the same TOML format:
+
+### 1. Project-level config (recommended)
+
+Create a `.refactor-radar.toml` file in your project root. This is automatically loaded by both the CLI and the API server:
 
 ```toml
 # Thresholds
@@ -139,12 +174,54 @@ excludePatterns = [
 ]
 ```
 
+### 2. API request overrides
+
+Pass a `config` field in the `/api/analyze` request body to override project config at runtime:
+
+```json
+{
+  "repoPath": "./my-project",
+  "config": {
+    "lineThreshold": 60,
+    "enabledRules": ["large_module", "circular_dependency"]
+  }
+}
+```
+
+### 3. Settings UI
+
+The web dashboard Settings page lets you adjust thresholds interactively. Values are sent to the API as request overrides.
+
+## CI/CD Integration
+
+### GitHub Actions with SARIF
+
+```yaml
+- name: Run Refactor Radar
+  run: |
+    cargo install --path .
+    refactor-radar . --format sarif > results.sarif
+
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: results.sarif
+```
+
+### Quality gates with exit codes
+
+```bash
+# Fail CI if any issues are found
+refactor-radar . --format summary
+# exit code 0 = clean, 1 = issues found, 2 = error
+```
+
 ## API Reference
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/health` | GET | Health check — returns `{ "status": "ok", "version": "..." }` |
-| `/api/analyze` | POST | Start analysis. Body: `{ "repoPath": "..." }` |
+| `/api/analyze` | POST | Start analysis. Body: `{ "repoPath": "...", "config": { ... } }` |
 | `/api/analyze/:id/status` | GET | Poll analysis progress (phase, done, error) |
 | `/api/analyze/:id/results` | GET | Fetch full analysis result (files + issues) |
 | `/api/analyze/:id/issues/:issue_id` | GET | Fetch a single issue with evidence |
@@ -201,9 +278,10 @@ docker run -p 8787:8787 refactor-radar
 
 ## Roadmap
 
+- [x] CLI mode with SARIF output for CI/CD integration
+- [x] Config passthrough from UI/API to analyzer
 - [ ] Support additional languages (Python, Go, Java)
 - [ ] AST-backed semantic duplication detection (tree-sitter)
-- [ ] CI integration — post analysis results as PR comments
 - [ ] Editor integrations (VS Code extension)
 - [ ] PR and diff analysis mode
 - [ ] Opt-in AI explanation layer for complex findings

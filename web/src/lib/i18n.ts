@@ -132,9 +132,21 @@ const translations = {
   },
   "empty.featureDuplication": {
     en: "Surface duplicate code candidates with evidence",
-    zh: "\u6807\u8bb0\u91cd\u590d\u4ee3\u7801\u5019\u9009\u5e76\u63d0\u4f9b\u8bc1\u636e",
+    zh: "标记重复代码候选并提供证据",
   },
-
+  "empty.featureLongParameterList": {
+    en: "Detect functions with too many parameters",
+    zh: "检测参数过多的函数",
+  },
+  "empty.featureDeepNesting": {
+    en: "Find deeply nested control flow structures",
+    zh: "发现深层嵌套的控制流结构",
+  },
+  "empty.featureGodFunction": {
+    en: "Identify functions with excessive complexity or size",
+    zh: "识别复杂度过高或规模过大的函数",
+  },
+  
   // Export
   "export.button": { en: "Export", zh: "\u5bfc\u51fa" },
   "export.json": { en: "Export JSON", zh: "\u5bfc\u51fa JSON" },
@@ -191,11 +203,17 @@ const translations = {
   "settings.functionCount": { en: "Function count threshold", zh: "函数数量阈值" },
   "settings.fanIn": { en: "Fan-in threshold", zh: "扇入阈值" },
   "settings.fanOut": { en: "Fan-out threshold", zh: "扇出阈值" },
+  "settings.longParameterList": { en: "Long parameter list threshold", zh: "长参数列表阈值" },
+  "settings.deepNesting": { en: "Deep nesting threshold", zh: "深层嵌套阈值" },
+  "settings.godFunction": { en: "God function threshold", zh: "上帝函数阈值" },
   "settings.rules": { en: "Rule toggles", zh: "规则开关" },
   "settings.ruleLargeModule": { en: "Large Module detection", zh: "大模块检测" },
   "settings.ruleDependencyHotspot": { en: "Dependency Hotspot detection", zh: "依赖热点检测" },
   "settings.ruleCircularDependency": { en: "Circular Dependency detection", zh: "循环依赖检测" },
   "settings.ruleDuplicationCandidate": { en: "Duplication Candidate detection", zh: "重复候选检测" },
+  "settings.ruleLongParameterList": { en: "Long Parameter List detection", zh: "长参数列表检测" },
+  "settings.ruleDeepNesting": { en: "Deep Nesting detection", zh: "深层嵌套检测" },
+  "settings.ruleGodFunction": { en: "God Function detection", zh: "上帝函数检测" },
   "settings.saved": { en: "Settings saved", zh: "设置已保存" },
   "settings.save": { en: "Save settings", zh: "保存设置" },
   "settings.reset": { en: "Reset to defaults", zh: "恢复默认" },
@@ -218,6 +236,13 @@ const translations = {
   "history.search": { en: "Search by path…", zh: "按路径搜索…" },
   "history.noResults": { en: "No matching analyses found.", zh: "未找到匹配的分析。" },
   "history.load": { en: "Load analysis", zh: "加载分析" },
+
+  // Server connection
+  "error.serverConnection": { en: "Unable to connect to analysis server", zh: "无法连接到分析服务器" },
+  "error.serverConnectionDetail": {
+    en: "Make sure the server is running. Start it with: cargo run -p server",
+    zh: "请确保服务正在运行。启动命令：cargo run -p server",
+  },
 
   // Error boundary
   "error.title": { en: "Something went wrong", zh: "出了点问题" },
