@@ -41,3 +41,6 @@ Desktop.ini
 
 # Misc
 *.bak
+*_diff.txt
+.qoder/
+.playwright-cli/

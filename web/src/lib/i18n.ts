@@ -25,6 +25,10 @@ const translations = {
   "analyzer.analyzing": { en: "Analyzing\u2026", zh: "分析中\u2026" },
   "analyzer.ready": { en: "Ready", zh: "就绪" },
   "analyzer.errorEmpty": { en: "Enter a repository path.", zh: "请输入代码库路径。" },
+  "analyzer.errorTimeout": {
+    en: "Analysis timed out. Check that the local server is still running.",
+    zh: "分析超时。请检查本地服务是否仍在运行。",
+  },
   "analyzer.recent": { en: "Recent repositories", zh: "最近分析" },
   "analyzer.noRecent": { en: "No recent analyses yet.", zh: "暂无分析记录。" },
 
@@ -57,6 +61,9 @@ const translations = {
   "filter.dependency_hotspot": { en: "Dependency Hotspot", zh: "依赖热点" },
   "filter.circular_dependency": { en: "Circular Dependency", zh: "循环依赖" },
   "filter.duplication_candidate": { en: "Duplication Candidate", zh: "重复候选" },
+  "filter.long_parameter_list": { en: "Long Parameter List", zh: "参数列表过长" },
+  "filter.deep_nesting": { en: "Deep Nesting", zh: "嵌套过深" },
+  "filter.god_function": { en: "God Function", zh: "上帝函数" },
 
   // Viz tabs
   "tab.overview": { en: "Overview", zh: "概览" },
@@ -73,6 +80,8 @@ const translations = {
   "chart.noIssues": { en: "No issues to display.", zh: "暂无问题。" },
   "chart.noFiles": { en: "No files to display.", zh: "暂无文件。" },
   "chart.noGraph": { en: "No dependency relationships to visualize.", zh: "无可视化的依赖关系。" },
+  "chart.hiddenNodes": { en: "+{count} hidden", zh: "+{count} 已隐藏" },
+  "chart.loading": { en: "Loading\u2026", zh: "加载中\u2026" },
   "chart.issuesUnit": { en: "issues", zh: "个问题" },
   "chart.score": { en: "Score", zh: "得分" },
 
@@ -102,6 +111,143 @@ const translations = {
 
   // Lang toggle
   "lang.toggle": { en: "\u4e2d\u6587", zh: "EN" },
+
+  // Empty state
+  "empty.title": { en: "Ready to scan", zh: "\u5f85\u626b\u63cf" },
+  "empty.hint": {
+    en: "Enter a JS/TS repository path and start analysis to see results here.",
+    zh: "\u8f93\u5165 JS/TS \u4ee3\u7801\u5e93\u8def\u5f84\u5e76\u5f00\u59cb\u5206\u6790\uff0c\u7ed3\u679c\u5c06\u5728\u8fd9\u91cc\u5c55\u793a\u3002",
+  },
+  "empty.featureLargeModule": {
+    en: "Detect oversized modules mixing responsibilities",
+    zh: "\u68c0\u6d4b\u804c\u8d23\u6df7\u6742\u7684\u8fc7\u5927\u6a21\u5757",
+  },
+  "empty.featureHotspot": {
+    en: "Identify dependency hotspots with high fan-in/fan-out",
+    zh: "\u8bc6\u522b fan-in/fan-out \u8fc7\u9ad8\u7684\u4f9d\u8d56\u70ed\u70b9",
+  },
+  "empty.featureCycle": {
+    en: "Find circular dependencies between modules",
+    zh: "\u53d1\u73b0\u6a21\u5757\u95f4\u7684\u5faa\u73af\u4f9d\u8d56",
+  },
+  "empty.featureDuplication": {
+    en: "Surface duplicate code candidates with evidence",
+    zh: "标记重复代码候选并提供证据",
+  },
+  "empty.featureLongParameterList": {
+    en: "Detect functions with too many parameters",
+    zh: "检测参数过多的函数",
+  },
+  "empty.featureDeepNesting": {
+    en: "Find deeply nested control flow structures",
+    zh: "发现深层嵌套的控制流结构",
+  },
+  "empty.featureGodFunction": {
+    en: "Identify functions with excessive complexity or size",
+    zh: "识别复杂度过高或规模过大的函数",
+  },
+  
+  // Export
+  "export.button": { en: "Export", zh: "\u5bfc\u51fa" },
+  "export.json": { en: "Export JSON", zh: "\u5bfc\u51fa JSON" },
+  "export.csv": { en: "Export CSV", zh: "\u5bfc\u51fa CSV" },
+  "export.markdown": { en: "Export Markdown", zh: "\u5bfc\u51fa Markdown" },
+  "export.csv.id": { en: "ID", zh: "ID" },
+  "export.csv.type": { en: "Type", zh: "\u7c7b\u578b" },
+  "export.csv.severity": { en: "Severity", zh: "\u4e25\u91cd\u5ea6" },
+  "export.csv.confidence": { en: "Confidence", zh: "\u7f6e\u4fe1\u5ea6" },
+  "export.csv.score": { en: "Score", zh: "\u5f97\u5206" },
+  "export.csv.files": { en: "Files", zh: "\u6587\u4ef6" },
+  "export.csv.summary": { en: "Summary", zh: "\u6458\u8981" },
+  "export.md.repository": { en: "Repository", zh: "\u4ee3\u7801\u5e93" },
+  "export.md.analyzedAt": { en: "Analyzed at", zh: "\u5206\u6790\u65f6\u95f4" },
+  "export.md.files": { en: "Files", zh: "\u6587\u4ef6" },
+  "export.md.modules": { en: "Modules", zh: "\u6a21\u5757" },
+  "export.md.issues": { en: "Issues", zh: "\u95ee\u9898" },
+  "export.md.highPriority": { en: "high priority", zh: "\u9ad8\u4f18\u5148\u7ea7" },
+  "export.md.issuesSection": { en: "Issues", zh: "\u95ee\u9898\u5217\u8868" },
+  "export.md.details": { en: "Details", zh: "\u8be6\u60c5" },
+  "export.md.evidence": { en: "Evidence", zh: "\u8bc1\u636e" },
+  "export.md.suggestedActions": { en: "Suggested actions", zh: "\u5efa\u8bae\u64cd\u4f5c" },
+
+  // History
+  "history.title": { en: "Analysis history", zh: "\u5206\u6790\u5386\u53f2" },
+  "history.empty": { en: "No analysis history yet.", zh: "\u6682\u65e0\u5206\u6790\u5386\u53f2\u3002" },
+  "history.issues": { en: "issues", zh: "\u4e2a\u95ee\u9898" },
+  "history.highPriority": { en: "high priority", zh: "\u9ad8\u4f18\u5148\u7ea7" },
+  "history.errorLoad": {
+    en: "Could not load this analysis. Check the local server and try again.",
+    zh: "无法加载此分析。请检查本地服务后重试。",
+  },
+
+  // Navigation and accessibility
+  "nav.skipToWorkspace": { en: "Skip to workspace", zh: "跳转到工作区" },
+  "a11y.filterByIssueType": { en: "Filter by issue type", zh: "按问题类型筛选" },
+  "a11y.analysisVisualizations": { en: "Analysis visualizations", zh: "分析可视化" },
+
+  // Navigation
+  "nav.dashboard": { en: "Dashboard", zh: "仪表板" },
+  "nav.history": { en: "History", zh: "历史" },
+  "nav.settings": { en: "Settings", zh: "设置" },
+
+  // Theme
+  "theme.toggle": { en: "Toggle theme", zh: "切换主题" },
+  "theme.dark": { en: "Dark", zh: "深色" },
+  "theme.light": { en: "Light", zh: "浅色" },
+
+  // Settings page
+  "settings.title": { en: "Settings", zh: "设置" },
+  "settings.desc": { en: "Configure analysis thresholds and rule toggles.", zh: "配置分析阈值和规则开关。" },
+  "settings.thresholds": { en: "Thresholds", zh: "阈值" },
+  "settings.lineCount": { en: "Line count threshold", zh: "行数阈值" },
+  "settings.functionCount": { en: "Function count threshold", zh: "函数数量阈值" },
+  "settings.fanIn": { en: "Fan-in threshold", zh: "扇入阈值" },
+  "settings.fanOut": { en: "Fan-out threshold", zh: "扇出阈值" },
+  "settings.longParameterList": { en: "Long parameter list threshold", zh: "长参数列表阈值" },
+  "settings.deepNesting": { en: "Deep nesting threshold", zh: "深层嵌套阈值" },
+  "settings.godFunction": { en: "God function threshold", zh: "上帝函数阈值" },
+  "settings.rules": { en: "Rule toggles", zh: "规则开关" },
+  "settings.ruleLargeModule": { en: "Large Module detection", zh: "大模块检测" },
+  "settings.ruleDependencyHotspot": { en: "Dependency Hotspot detection", zh: "依赖热点检测" },
+  "settings.ruleCircularDependency": { en: "Circular Dependency detection", zh: "循环依赖检测" },
+  "settings.ruleDuplicationCandidate": { en: "Duplication Candidate detection", zh: "重复候选检测" },
+  "settings.ruleLongParameterList": { en: "Long Parameter List detection", zh: "长参数列表检测" },
+  "settings.ruleDeepNesting": { en: "Deep Nesting detection", zh: "深层嵌套检测" },
+  "settings.ruleGodFunction": { en: "God Function detection", zh: "上帝函数检测" },
+  "settings.saved": { en: "Settings saved", zh: "设置已保存" },
+  "settings.save": { en: "Save settings", zh: "保存设置" },
+  "settings.reset": { en: "Reset to defaults", zh: "恢复默认" },
+
+  // Toast / errors
+  "toast.error": { en: "Error", zh: "错误" },
+  "toast.retry": { en: "Retry", zh: "重试" },
+  "toast.dismiss": { en: "Dismiss", zh: "关闭" },
+  "toast.networkError": { en: "Network error. Please check your connection.", zh: "网络错误，请检查连接。" },
+  "toast.analysisFailed": { en: "Analysis failed", zh: "分析失败" },
+
+  // Skeleton / loading
+  "skeleton.loading": { en: "Loading content…", zh: "加载内容中…" },
+  "skeleton.chart": { en: "Loading chart…", zh: "加载图表中…" },
+  "skeleton.list": { en: "Loading list…", zh: "加载列表中…" },
+
+  // History page
+  "history.pageTitle": { en: "Analysis History", zh: "分析历史" },
+  "history.pageDesc": { en: "Browse and search previous analyses.", zh: "浏览和搜索之前的分析。" },
+  "history.search": { en: "Search by path…", zh: "按路径搜索…" },
+  "history.noResults": { en: "No matching analyses found.", zh: "未找到匹配的分析。" },
+  "history.load": { en: "Load analysis", zh: "加载分析" },
+
+  // Server connection
+  "error.serverConnection": { en: "Unable to connect to analysis server", zh: "无法连接到分析服务器" },
+  "error.serverConnectionDetail": {
+    en: "Make sure the server is running. Start it with: cargo run -p server",
+    zh: "请确保服务正在运行。启动命令：cargo run -p server",
+  },
+
+  // Error boundary
+  "error.title": { en: "Something went wrong", zh: "出了点问题" },
+  "error.desc": { en: "An unexpected error occurred. Try refreshing the page.", zh: "发生意外错误，请尝试刷新页面。" },
+  "error.retry": { en: "Try again", zh: "重试" },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

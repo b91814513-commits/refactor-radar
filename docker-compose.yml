@@ -1,0 +1,7 @@
+services:
+  refactor-radar:
+    build: .
+    ports:
+      - "8787:8787"
+    volumes:
+      - ./data:/app/.refactor-radar

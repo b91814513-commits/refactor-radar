@@ -21,6 +21,9 @@ const TYPE_COLORS: Record<IssueType, string> = {
   dependency_hotspot: "#f59e0b",
   circular_dependency: "#ef4444",
   duplication_candidate: "#3b82f6",
+  long_parameter_list: "#ec4899",
+  deep_nesting: "#f97316",
+  god_function: "#dc2626",
 };
 
 const TYPE_I18N: Record<IssueType, TranslationKey> = {
@@ -28,6 +31,9 @@ const TYPE_I18N: Record<IssueType, TranslationKey> = {
   dependency_hotspot: "filter.dependency_hotspot",
   circular_dependency: "filter.circular_dependency",
   duplication_candidate: "filter.duplication_candidate",
+  long_parameter_list: "filter.long_parameter_list",
+  deep_nesting: "filter.deep_nesting",
+  god_function: "filter.god_function",
 };
 
 interface TooltipPayloadEntry {
